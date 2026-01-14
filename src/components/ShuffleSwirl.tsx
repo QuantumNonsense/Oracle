@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Easing,
@@ -20,16 +20,13 @@ type ShuffleSwirlProps = {
 
 const DEFAULT_SIZE = 260;
 const DEFAULT_CARD_WIDTH = 140;
-const CARD_COUNT = 10;
-const CYCLES = 2;
-const CYCLE_DURATION = 480;
-const HOLD_BETWEEN = 0;
-const TOS: number[][] = [
-  [3, 8, 1, 6, 0, 9, 2, 5, 7, 4],
-  [6, 1, 9, 2, 7, 0, 4, 8, 5, 3],
-  [2, 5, 0, 8, 3, 7, 9, 1, 4, 6],
-  [7, 0, 4, 1, 9, 3, 6, 2, 8, 5],
-];
+const CARD_COUNT = 8;
+const COLLAPSE_DURATION = 450;
+const HOLD_BEFORE_SHAKE = 100;
+const SHAKE_DURATION = 650;
+const HOLD_AFTER_SHAKE = 100;
+const EXPAND_DURATION = 450;
+const SHAKE_STEPS = 6;
 
 export default function ShuffleSwirl({
   visible,
@@ -39,20 +36,21 @@ export default function ShuffleSwirl({
   anchor = null,
 }: ShuffleSwirlProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const phase = useRef(new Animated.Value(0)).current;
+  const collapsePhase = useRef(new Animated.Value(0)).current;
+  const shakePhase = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const [cycleIndex, setCycleIndex] = useState(0);
 
   const effectiveCardWidth = Math.min(cardWidth, 170);
   const effectiveSize = Math.min(size, 360);
   const cardHeight = effectiveCardWidth * 1.5;
   const slots = useMemo(() => {
     return Array.from({ length: CARD_COUNT }).map((_, index) => {
-      const offsetFromCenter = index - (CARD_COUNT - 1) / 2;
+      const virtualIndex = index + 1;
+      const offsetFromCenter = virtualIndex - 4.5;
       return {
-        x: offsetFromCenter * effectiveCardWidth * 0.14,
-        y: spacing.md + -Math.abs(offsetFromCenter) * 5,
-        rot: 10 - (20 / 9) * index,
+        x: offsetFromCenter * effectiveCardWidth * 0.18,
+        y: spacing.md + -Math.abs(offsetFromCenter) * 6,
+        rot: 12 - (24 / 9) * virtualIndex,
       };
     });
   }, [effectiveCardWidth]);
@@ -60,103 +58,115 @@ export default function ShuffleSwirl({
   useEffect(() => {
     if (!visible) {
       animationRef.current?.stop();
-      phase.setValue(0);
-      setCycleIndex(0);
+      collapsePhase.setValue(0);
+      shakePhase.setValue(0);
       return;
     }
 
-    const runCycle = (index: number) => {
-      setCycleIndex(index);
-      phase.setValue(0);
-      const animation = Animated.sequence([
-        Animated.timing(phase, {
-          toValue: 1,
-          duration: CYCLE_DURATION,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(phase, {
-          toValue: 0,
-          duration: CYCLE_DURATION,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.delay(HOLD_BETWEEN),
-      ]);
-      animationRef.current = animation;
-      animation.start(({ finished }) => {
-        if (!finished) {
-          return;
-        }
-        if (index < CYCLES - 1) {
-          runCycle(index + 1);
-          return;
-        }
-        onDone?.();
-      });
-    };
+    collapsePhase.setValue(0);
+    shakePhase.setValue(0);
 
-    runCycle(0);
+    const stepDuration = SHAKE_DURATION / (SHAKE_STEPS * 2);
+    const shakeSteps = Array.from({ length: SHAKE_STEPS }).flatMap(() => [
+      Animated.timing(shakePhase, {
+        toValue: 1,
+        duration: stepDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakePhase, {
+        toValue: 0,
+        duration: stepDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    const animation = Animated.sequence([
+      Animated.timing(collapsePhase, {
+        toValue: 1,
+        duration: COLLAPSE_DURATION,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+      Animated.delay(HOLD_BEFORE_SHAKE),
+      Animated.sequence(shakeSteps),
+      Animated.delay(HOLD_AFTER_SHAKE),
+      Animated.timing(collapsePhase, {
+        toValue: 0,
+        duration: EXPAND_DURATION,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    animationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (finished) {
+        onDone?.();
+      }
+    });
 
     return () => {
       animationRef.current?.stop();
     };
-  }, [onDone, phase, visible]);
+  }, [collapsePhase, onDone, shakePhase, visible]);
 
   const cardStyles = useMemo(() => {
     return Array.from({ length: CARD_COUNT }).map((_, index) => {
-      const fromSlot = index;
-      const toSlot = TOS[cycleIndex][index];
-      const from = slots[fromSlot];
-      const to = slots[toSlot];
-      const phaseShift = (index - (CARD_COUNT - 1) / 2) * 0.02;
-      const staggeredPhase = Animated.diffClamp(
-        Animated.add(phase, phaseShift),
-        0,
-        1
-      );
-      const lift = 12 + (index % 3) * 2;
-      const swoop = index % 2 === 0 ? 2 : -2;
-      const midPhase = staggeredPhase.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [0, 1, 0],
-      });
-      const depthBias = index % 2 === 0 ? 1 : -1;
-      const depthScale = index % 2 === 0 ? -0.01 : 0.015;
+      const from = slots[index];
+      const centerOffset = index - (CARD_COUNT - 1) / 2;
+      const stackX = centerOffset * 0.6;
+      const stackY = spacing.md + (index % 2 === 0 ? -0.4 : 0.4);
+      const stackRot = centerOffset * 0.6;
+      const depthScale = index % 2 === 0 ? -0.008 : 0.01;
 
-      const translateX = staggeredPhase.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [from.x, to.x + swoop, from.x],
+      const translateX = collapsePhase.interpolate({
+        inputRange: [0, 1],
+        outputRange: [from.x, stackX],
       });
-      const translateY = staggeredPhase.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [from.y, to.y - lift, from.y],
+      const translateY = collapsePhase.interpolate({
+        inputRange: [0, 1],
+        outputRange: [from.y, stackY],
       });
-      const rotateZ = staggeredPhase.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [`${from.rot}deg`, `${to.rot}deg`, `${from.rot}deg`],
+      const rotateZ = collapsePhase.interpolate({
+        inputRange: [0, 1],
+        outputRange: [`${from.rot}deg`, `${stackRot}deg`],
       });
-      const scale = Animated.add(1, Animated.multiply(midPhase, depthScale));
-      const stackedTranslateY = Animated.add(
-        translateY,
-        Animated.multiply(midPhase, depthBias)
+      const scale = Animated.add(
+        1,
+        Animated.multiply(collapsePhase, depthScale)
+      );
+      const shakeX = Animated.multiply(
+        collapsePhase,
+        shakePhase.interpolate({
+          inputRange: [0, 0.25, 0.5, 0.75, 1],
+          outputRange: [0, -3, 3, -2, 0],
+        })
+      );
+      const shakeY = Animated.multiply(
+        collapsePhase,
+        shakePhase.interpolate({
+          inputRange: [0, 0.25, 0.5, 0.75, 1],
+          outputRange: [0, 2, -2, 1, 0],
+        })
       );
 
       return {
-        opacity: staggeredPhase.interpolate({
-          inputRange: [0, 0.5, 1],
-          outputRange: [1, index % 2 === 0 ? 0.97 : 0.99, 1],
+        opacity: collapsePhase.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.995],
         }),
-        zIndex: (cycleIndex === CYCLES - 1 ? fromSlot : toSlot) + 1,
+        zIndex: index + 1,
         transform: [
-          { translateX },
-          { translateY: stackedTranslateY },
+          { translateX: Animated.add(translateX, shakeX) },
+          { translateY: Animated.add(translateY, shakeY) },
           { rotateZ },
           { scale },
         ],
       } satisfies Animated.WithAnimatedObject<ImageStyle>;
     });
-  }, [cycleIndex, phase, slots]);
+  }, [collapsePhase, shakePhase, slots]);
 
   if (!visible) {
     return null;
@@ -182,7 +192,6 @@ export default function ShuffleSwirl({
           },
         ]}
       >
-        <View style={styles.glow} />
         {cardStyles.map((style, index) => {
           if (index % 2 !== 0) {
             return null;
@@ -233,15 +242,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     alignItems: "center",
     justifyContent: "center",
-  },
-  glow: {
-    position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 120,
-    backgroundColor: colors.accentLavender,
-    opacity: 0.2,
-    ...shadow.soft,
   },
   card: {
     position: "absolute",

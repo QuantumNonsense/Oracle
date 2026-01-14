@@ -339,7 +339,11 @@ export default function Index() {
               const { x, y, width, height } = event.nativeEvent.layout;
               setFanLayout({ x, y, w: width, h: height });
             }}
-            style={[styles.fanArea, { height: fanHeight }]}
+            pointerEvents={isShuffling ? "none" : "auto"}
+            style={[
+              styles.fanArea,
+              { height: fanHeight, opacity: isShuffling ? 0 : 1 },
+            ]}
           >
             {Array.from({ length: 8 }).map((_, index) => {
               const virtualIndex = index + 1;
@@ -529,7 +533,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
     backgroundColor: colors.surfaceAlt,
-    ...shadow.soft,
   },
   fanCardImage: {
     width: "100%",
