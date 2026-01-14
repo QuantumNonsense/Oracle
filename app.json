@@ -1,19 +1,40 @@
 {
   "expo": {
-    "name": "Oracle Cards",
-    "slug": "oracle-cards",
+    "name": "Mycology Oracle Cards",
+    "slug": "mycology-oracle-cards",
     "scheme": "oracle-cards",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "icon": "./icon.png",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "web": {
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.quantumnonsense.oracle",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.quantumnonsense.oracle"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9e563811-9d5e-4616-b515-58dfb16e9a0a"
+      }
     }
   }
 }

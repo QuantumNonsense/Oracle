@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -35,6 +35,13 @@ type HistoryEntry = {
   id: string;
   title: string;
   drawnAt: string;
+};
+
+type FanLayout = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 };
 
 const storage = {
@@ -90,6 +97,9 @@ export default function Index() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [isShuffling, setIsShuffling] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [fanLayout, setFanLayout] = useState<FanLayout | null>(null);
+  const fanRef = useRef<View | null>(null);
 
   useEffect(() => {
     const loadState = async () => {
@@ -167,10 +177,19 @@ export default function Index() {
     }));
     setIsFront(false);
     setCurrentCard(null);
+    setSelectedSlot(null);
   }, []);
 
   const handleShufflePress = useCallback(() => {
     if (isShuffling) {
+      return;
+    }
+    const node = fanRef.current;
+    if (node?.measureInWindow) {
+      node.measureInWindow((x, y, w, h) => {
+        setFanLayout({ x, y, w, h });
+        setIsShuffling(true);
+      });
       return;
     }
     setIsShuffling(true);
@@ -188,6 +207,14 @@ export default function Index() {
     }
     setIsFront((prev) => !prev);
   }, [currentCard, drawNextCard]);
+
+  const handleSelectFromFan = useCallback(
+    (slotIndex: number) => {
+      setSelectedSlot(slotIndex);
+      drawNextCard();
+    },
+    [drawNextCard]
+  );
 
   const toggleFavorite = useCallback(() => {
     if (!currentCard || currentCard.type !== "card") {
@@ -242,6 +269,15 @@ export default function Index() {
     const available = windowWidth - spacing.lg * 2;
     return Math.min(available, 340);
   }, [windowWidth]);
+  const fanCardWidth = useMemo(
+    () => Math.min(cardWidth * 0.55, 160),
+    [cardWidth]
+  );
+  const fanCardHeight = useMemo(() => fanCardWidth * 1.5, [fanCardWidth]);
+  const fanHeight = useMemo(
+    () => fanCardHeight + spacing.lg * 2.25,
+    [fanCardHeight]
+  );
   const selectedCard = selectedHistoryId ? cardsById.get(selectedHistoryId) ?? null : null;
   const selectedEntry = selectedHistoryId
     ? history.find((entry) => entry.id === selectedHistoryId) ?? null
@@ -288,19 +324,58 @@ export default function Index() {
         <Text style={styles.title}>Today's pull</Text>
         <Text style={styles.subtitle}>Tap the card to reveal your draw.</Text>
 
-        <CardFlip
-          onBeforeFlip={handleFlip}
-          isFront={isFront}
-          front={
-            currentCard ? (
-              <Image source={currentCard.image} style={styles.cardImage} />
-            ) : (
-              <Image source={cardBackImage} style={styles.cardImage} />
-            )
-          }
-          back={<Image source={cardBackImage} style={styles.cardImage} />}
-          style={styles.cardArea}
-        />
+        {currentCard ? (
+          <CardFlip
+            onBeforeFlip={handleFlip}
+            isFront={isFront}
+            front={<Image source={currentCard.image} style={styles.cardImage} />}
+            back={<Image source={cardBackImage} style={styles.cardImage} />}
+            style={styles.cardArea}
+          />
+        ) : (
+          <View
+            ref={fanRef}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              setFanLayout({ x, y, w: width, h: height });
+            }}
+            style={[styles.fanArea, { height: fanHeight }]}
+          >
+            {Array.from({ length: 8 }).map((_, index) => {
+              const virtualIndex = index + 1;
+              const center = 4.5;
+              const offsetFromCenter = virtualIndex - center;
+              const rotation = 12 - (24 / 9) * virtualIndex;
+              const offsetX = offsetFromCenter * fanCardWidth * 0.18;
+              const offsetY = -Math.abs(offsetFromCenter) * 6;
+              const isSelected = selectedSlot === index;
+              return (
+                <Pressable
+                  key={`fan-card-${index}`}
+                  onPress={() => handleSelectFromFan(index)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Pick card ${index + 1}`}
+                  style={[
+                    styles.fanCard,
+                    {
+                      width: fanCardWidth,
+                      height: fanCardHeight,
+                      zIndex: isSelected ? 20 : index,
+                      transform: [
+                        { translateX: offsetX - fanCardWidth / 2 },
+                        { translateY: spacing.md },
+                        { translateY: offsetY },
+                        { rotate: `${rotation}deg` },
+                      ],
+                    },
+                  ]}
+                >
+                  <Image source={cardBackImage} style={styles.fanCardImage} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         <View style={styles.controls}>
           <ThemedButton label="Draw Next" onPress={drawNextCard} />
@@ -393,8 +468,9 @@ export default function Index() {
       <ShuffleSwirl
         visible={isShuffling}
         onDone={handleShuffleDone}
-        cardWidth={cardWidth}
-        size={cardWidth * 1.15}
+        cardWidth={fanCardWidth}
+        size={fanCardWidth * 2.1}
+        anchor={fanLayout}
       />
     </ImageBackground>
   );
@@ -437,6 +513,28 @@ const styles = StyleSheet.create({
   cardArea: {
     width: "100%",
     marginBottom: spacing.md,
+  },
+  fanArea: {
+    width: "100%",
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  fanCard: {
+    position: "absolute",
+    left: "50%",
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surfaceAlt,
+    ...shadow.soft,
+  },
+  fanCardImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   cardImage: {
     width: "100%",
