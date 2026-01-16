@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
+  Easing,
   FlatList,
   Image,
   ImageBackground,
@@ -40,6 +42,11 @@ type HistoryEntry = {
 type FanLayout = {
   x: number;
   y: number;
+  w: number;
+  h: number;
+};
+
+type FanSize = {
   w: number;
   h: number;
 };
@@ -84,7 +91,7 @@ const formatHistoryDate = (value: string) => {
 
 export default function Index() {
   const bg = require("../assets/backgrounds/mushroom-field.png");
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [deckState, setDeckState] = useState<DeckState>({
     cards: drawableCards,
     order: [],
@@ -95,11 +102,16 @@ export default function Index() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
+    null
+  );
   const [isShuffling, setIsShuffling] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [fanLayout, setFanLayout] = useState<FanLayout | null>(null);
+  const [fanSize, setFanSize] = useState<FanSize | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const fanRef = useRef<View | null>(null);
+  const selectionAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loadState = async () => {
@@ -186,14 +198,18 @@ export default function Index() {
     }
     const node = fanRef.current;
     if (node?.measureInWindow) {
+      // Always use window coordinates for the overlay anchor.
       node.measureInWindow((x, y, w, h) => {
         setFanLayout({ x, y, w, h });
         setIsShuffling(true);
       });
       return;
     }
+    if (fanSize) {
+      setFanLayout({ x: 0, y: 0, w: fanSize.w, h: fanSize.h });
+    }
     setIsShuffling(true);
-  }, [isShuffling]);
+  }, [fanSize, isShuffling]);
 
   const handleShuffleDone = useCallback(() => {
     shuffleDeck();
@@ -210,10 +226,41 @@ export default function Index() {
 
   const handleSelectFromFan = useCallback(
     (slotIndex: number) => {
+      if (isConfirmOpen || isShuffling) {
+        return;
+      }
       setSelectedSlot(slotIndex);
-      drawNextCard();
+      setIsConfirmOpen(true);
+      Animated.timing(selectionAnim, {
+        toValue: 1,
+        duration: 350,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
     },
-    [drawNextCard]
+    [isConfirmOpen, isShuffling, selectionAnim]
+  );
+
+  const handleConfirmSelection = useCallback(
+    (confirmed: boolean) => {
+      if (confirmed) {
+        selectionAnim.setValue(0);
+        setIsConfirmOpen(false);
+        setSelectedSlot(null);
+        drawNextCard();
+        return;
+      }
+      Animated.timing(selectionAnim, {
+        toValue: 0,
+        duration: 350,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        setIsConfirmOpen(false);
+        setSelectedSlot(null);
+      });
+    },
+    [drawNextCard, selectionAnim]
   );
 
   const toggleFavorite = useCallback(() => {
@@ -244,18 +291,16 @@ export default function Index() {
       return;
     }
 
-    Alert.alert(
-      "Clear History",
-      "This will remove all saved draws.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Clear", style: "destructive", onPress: runClear },
-      ]
-    );
+    Alert.alert("Clear History", "This will remove all saved draws.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Clear", style: "destructive", onPress: runClear },
+    ]);
   }, []);
 
   const isFavorite =
-    currentCard && currentCard.type === "card" ? favorites[currentCard.id] : false;
+    currentCard && currentCard.type === "card"
+      ? favorites[currentCard.id]
+      : false;
   const canFavorite = currentCard?.type === "card";
   const formattedHistory = useMemo(
     () =>
@@ -278,7 +323,17 @@ export default function Index() {
     () => fanCardHeight + spacing.lg * 2.25,
     [fanCardHeight]
   );
-  const selectedCard = selectedHistoryId ? cardsById.get(selectedHistoryId) ?? null : null;
+  const fanSpacerHeight = useMemo(
+    () => fanCardHeight * 0.2 + spacing.sm,
+    [fanCardHeight]
+  );
+  const controlsOffset = useMemo(
+    () => Math.min(windowHeight * 0.25, 180),
+    [windowHeight]
+  );
+  const selectedCard = selectedHistoryId
+    ? cardsById.get(selectedHistoryId) ?? null
+    : null;
   const selectedEntry = selectedHistoryId
     ? history.find((entry) => entry.id === selectedHistoryId) ?? null
     : null;
@@ -320,7 +375,10 @@ export default function Index() {
       onError={(event) => console.log("BG ERROR", event?.nativeEvent)}
     >
       <View pointerEvents="none" style={styles.bgTint} />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.container}
+      >
         <Text style={styles.title}>Today's pull</Text>
         <Text style={styles.subtitle}>Tap the card to reveal your draw.</Text>
 
@@ -328,61 +386,84 @@ export default function Index() {
           <CardFlip
             onBeforeFlip={handleFlip}
             isFront={isFront}
-            front={<Image source={currentCard.image} style={styles.cardImage} />}
+            front={
+              <Image source={currentCard.image} style={styles.cardImage} />
+            }
             back={<Image source={cardBackImage} style={styles.cardImage} />}
             style={styles.cardArea}
           />
         ) : (
-          <View
-            ref={fanRef}
-            onLayout={(event) => {
-              const { x, y, width, height } = event.nativeEvent.layout;
-              setFanLayout({ x, y, w: width, h: height });
-            }}
-            pointerEvents={isShuffling ? "none" : "auto"}
-            style={[
-              styles.fanArea,
-              { height: fanHeight, opacity: isShuffling ? 0 : 1 },
-            ]}
-          >
-            {Array.from({ length: 8 }).map((_, index) => {
-              const virtualIndex = index + 1;
-              const center = 4.5;
-              const offsetFromCenter = virtualIndex - center;
-              const rotation = 12 - (24 / 9) * virtualIndex;
-              const offsetX = offsetFromCenter * fanCardWidth * 0.18;
-              const offsetY = -Math.abs(offsetFromCenter) * 6;
-              const isSelected = selectedSlot === index;
-              return (
-                <Pressable
-                  key={`fan-card-${index}`}
-                  onPress={() => handleSelectFromFan(index)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pick card ${index + 1}`}
-                  style={[
-                    styles.fanCard,
-                    {
-                      width: fanCardWidth,
-                      height: fanCardHeight,
-                      zIndex: isSelected ? 20 : index,
-                      transform: [
-                        { translateX: offsetX - fanCardWidth / 2 },
-                        { translateY: spacing.md },
-                        { translateY: offsetY },
-                        { rotate: `${rotation}deg` },
-                      ],
-                    },
-                  ]}
-                >
-                  <Image source={cardBackImage} style={styles.fanCardImage} />
-                </Pressable>
-              );
-            })}
-          </View>
+          <>
+            <View
+              ref={fanRef}
+              onLayout={(event) => {
+                const { width, height } = event.nativeEvent.layout;
+                setFanSize({ w: width, h: height });
+              }}
+              pointerEvents={isShuffling ? "none" : "auto"}
+              style={[
+                styles.fanArea,
+                { height: fanHeight, opacity: isShuffling ? 0 : 1 },
+              ]}
+            >
+              {Array.from({ length: 8 }).map((_, index) => {
+                const virtualIndex = index + 1;
+                const center = 4.5;
+                const offsetFromCenter = virtualIndex - center;
+                const rotation = 12 - (24 / 9) * virtualIndex;
+                const offsetX = offsetFromCenter * fanCardWidth * 0.18;
+                const offsetY = -Math.abs(offsetFromCenter) * 6;
+                const isSelected = selectedSlot === index;
+                const liftY = Animated.multiply(
+                  selectionAnim,
+                  fanCardHeight * 0.2
+                );
+                const liftScale = Animated.add(
+                  1,
+                  Animated.multiply(selectionAnim, 0.08)
+                );
+                return (
+                  <Pressable
+                    key={`fan-card-${index}`}
+                    onPress={() => handleSelectFromFan(index)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pick card ${index + 1}`}
+                  >
+                    <Animated.View
+                      style={[
+                        styles.fanCard,
+                        {
+                          width: fanCardWidth,
+                          height: fanCardHeight,
+                          zIndex: isSelected ? 20 : index,
+                          transform: [
+                            { translateX: offsetX - fanCardWidth / 2 },
+                            { translateY: spacing.md - 25 },
+                            { translateY: offsetY },
+                            { rotate: `${rotation}deg` },
+                            ...(isSelected
+                              ? [{ translateY: liftY }, { scale: liftScale }]
+                              : []),
+                          ],
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={cardBackImage}
+                        style={styles.fanCardImage}
+                      />
+                    </Animated.View>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={{ height: fanSpacerHeight }} />
+          </>
         )}
 
-        <View style={styles.controls}>
-          <ThemedButton label="Draw Next" onPress={drawNextCard} />
+        <View
+          style={[styles.controls, { marginTop: spacing.sm + controlsOffset }]}
+        >
           <ThemedButton
             label="Shuffle"
             onPress={handleShufflePress}
@@ -443,7 +524,11 @@ export default function Index() {
           </View>
         </Modal>
 
-        <Modal transparent visible={selectedHistoryId !== null} animationType="fade">
+        <Modal
+          transparent
+          visible={selectedHistoryId !== null}
+          animationType="fade"
+        >
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               {selectedCard && selectedEntry ? (
@@ -453,7 +538,10 @@ export default function Index() {
                     {formatHistoryDate(selectedEntry.drawnAt)}
                   </Text>
                   <View style={styles.detailImageWrap}>
-                    <Image source={selectedCard.image} style={styles.detailImage} />
+                    <Image
+                      source={selectedCard.image}
+                      style={styles.detailImage}
+                    />
                   </View>
                 </ScrollView>
               ) : (
@@ -465,6 +553,30 @@ export default function Index() {
                 variant="ghost"
                 style={styles.modalCloseButton}
               />
+            </View>
+          </View>
+        </Modal>
+
+        <Modal transparent visible={isConfirmOpen} animationType="fade">
+          <View style={styles.confirmOverlay}>
+            <View style={[styles.modalCard, styles.confirmCard]}>
+              <Text style={[styles.modalTitle, styles.confirmTitle]}>
+                Confirm your pick
+              </Text>
+              <Text style={[styles.modalSubtitle, styles.confirmSubtitle]}>
+                Are you sure this is the card you want?
+              </Text>
+              <View style={styles.confirmActions}>
+                <ThemedButton
+                  label="Yes"
+                  onPress={() => handleConfirmSelection(true)}
+                />
+                <ThemedButton
+                  label="No"
+                  onPress={() => handleConfirmSelection(false)}
+                  variant="secondary"
+                />
+              </View>
             </View>
           </View>
         </Modal>
@@ -524,6 +636,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
+    marginTop: -25,
   },
   fanCard: {
     position: "absolute",
@@ -561,6 +674,26 @@ const styles = StyleSheet.create({
   },
   historyButton: {
     backgroundColor: colors.accentLavender,
+  },
+  confirmActions: {
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(18, 16, 36, 0.72)",
+    alignItems: "center",
+    padding: spacing.lg,
+    paddingTop: spacing.xl * 1.5,
+  },
+  confirmCard: {
+    maxWidth: 420,
+  },
+  confirmTitle: {
+    textAlign: "center",
+  },
+  confirmSubtitle: {
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
