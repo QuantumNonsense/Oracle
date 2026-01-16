@@ -110,6 +110,7 @@ export default function Index() {
   const [fanLayout, setFanLayout] = useState<FanLayout | null>(null);
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [autoFlipNext, setAutoFlipNext] = useState(false);
   const fanRef = useRef<View | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
 
@@ -130,13 +131,7 @@ export default function Index() {
         }
       }
 
-      if (storedLast) {
-        const match = cardsById.get(storedLast) ?? null;
-        if (match) {
-          setCurrentCard(match);
-          setIsFront(false);
-        }
-      }
+      // Intentionally ignore stored last card so the fan is shown on load.
 
       if (storedHistory) {
         try {
@@ -170,16 +165,31 @@ export default function Index() {
     void storage.setItem(FAVORITES_KEY, JSON.stringify(next));
   }, []);
 
-  const drawNextCard = useCallback(() => {
-    setDeckState((prev) => {
-      const result = drawNext(prev);
-      setCurrentCard(result.card);
+  const drawNextCard = useCallback(
+    (autoFlip = false) => {
+      setAutoFlipNext(autoFlip);
+      setDeckState((prev) => {
+        const result = drawNext(prev);
+        setCurrentCard(result.card);
+        recordHistory(result.card);
+        persistLastCard(result.card);
+        return result.state;
+      });
+      setIsFront(!autoFlip);
+    },
+    [persistLastCard, recordHistory]
+  );
+
+  useEffect(() => {
+    if (!currentCard || !autoFlipNext) {
+      return;
+    }
+    const timeout = setTimeout(() => {
       setIsFront(true);
-      recordHistory(result.card);
-      persistLastCard(result.card);
-      return result.state;
-    });
-  }, [persistLastCard, recordHistory]);
+      setAutoFlipNext(false);
+    }, 140);
+    return () => clearTimeout(timeout);
+  }, [autoFlipNext, currentCard]);
 
   const shuffleDeck = useCallback(() => {
     setDeckState((prev) => ({
@@ -218,7 +228,7 @@ export default function Index() {
 
   const handleFlip = useCallback(() => {
     if (!currentCard) {
-      drawNextCard();
+      drawNextCard(true);
       return;
     }
     setIsFront((prev) => !prev);
@@ -247,7 +257,7 @@ export default function Index() {
         selectionAnim.setValue(0);
         setIsConfirmOpen(false);
         setSelectedSlot(null);
-        drawNextCard();
+        drawNextCard(true);
         return;
       }
       Animated.timing(selectionAnim, {

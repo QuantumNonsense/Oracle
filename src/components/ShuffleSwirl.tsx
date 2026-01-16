@@ -21,13 +21,13 @@ type ShuffleSwirlProps = {
 const DEFAULT_SIZE = 260;
 const DEFAULT_CARD_WIDTH = 140;
 const CARD_COUNT = 8;
-const COLLAPSE_DURATION = 450;
-const HOLD_BEFORE_SHAKE = 100;
-const SHAKE_DURATION = 650;
-const HOLD_AFTER_SHAKE = 100;
-const EXPAND_DURATION = 450;
+const COLLAPSE_DURATION = 550;
+const HOLD_BEFORE_SHAKE = 40;
+const SHAKE_DURATION = 1;
+const HOLD_AFTER_SHAKE = 40;
+const EXPAND_DURATION = 550;
 const SHAKE_STEPS = 6;
-const SWIRL_DURATION = 380;
+const SWIRL_DURATION = 800;
 const SWIRL_STEPS = 8;
 
 export default function ShuffleSwirl({
@@ -108,6 +108,24 @@ export default function ShuffleSwirl({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
+      Animated.timing(swirlT, {
+        toValue: 0,
+        duration: 1,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(swirlT, {
+        toValue: 1,
+        duration: SWIRL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(swirlT, {
+        toValue: 0,
+        duration: 1,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
       Animated.timing(collapsePhase, {
         toValue: 0,
         duration: EXPAND_DURATION,
@@ -182,8 +200,7 @@ export default function ShuffleSwirl({
         ? swirlT.interpolate({
             inputRange: stepInput,
             outputRange: stepInput.map(
-              (step) =>
-                Math.cos(step * Math.PI * 2 + phaseOffset) * swirlRadius
+              (step) => Math.cos(step * Math.PI * 2 + phaseOffset) * swirlRadius
             ),
           })
         : Animated.multiply(swirlT, 0);
@@ -192,9 +209,7 @@ export default function ShuffleSwirl({
             inputRange: stepInput,
             outputRange: stepInput.map(
               (step) =>
-                Math.sin(step * Math.PI * 2 + phaseOffset) *
-                swirlRadius *
-                0.65
+                Math.sin(step * Math.PI * 2 + phaseOffset) * swirlRadius * 0.65
             ),
           })
         : Animated.multiply(swirlT, 0);
@@ -214,8 +229,12 @@ export default function ShuffleSwirl({
         }),
         zIndex: index + 1,
         transform: [
-          { translateX: Animated.add(translateX, Animated.add(shakeX, swirlX)) },
-          { translateY: Animated.add(translateY, Animated.add(shakeY, swirlY)) },
+          {
+            translateX: Animated.add(translateX, Animated.add(shakeX, swirlX)),
+          },
+          {
+            translateY: Animated.add(translateY, Animated.add(shakeY, swirlY)),
+          },
           { rotateZ },
           { rotate: swirlRotate },
           { scale },
