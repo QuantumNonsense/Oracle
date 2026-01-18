@@ -16,6 +16,7 @@ type ShuffleSwirlProps = {
   size?: number;
   cardWidth?: number;
   anchor?: { x: number; y: number; w: number; h: number } | null;
+  baseY?: number;
 };
 
 const DEFAULT_SIZE = 260;
@@ -36,6 +37,7 @@ export default function ShuffleSwirl({
   size = DEFAULT_SIZE,
   cardWidth = DEFAULT_CARD_WIDTH,
   anchor = null,
+  baseY,
 }: ShuffleSwirlProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const collapsePhase = useRef(new Animated.Value(0)).current;
@@ -46,7 +48,7 @@ export default function ShuffleSwirl({
   const effectiveCardWidth = Math.min(cardWidth, 170);
   const effectiveSize = Math.min(size, 360);
   const cardHeight = effectiveCardWidth * 1.5;
-  const fanBaseY = spacing.md - 25;
+  const fanBaseY = baseY ?? spacing.lg * 1.125;
   const swirlRadius = useMemo(
     () => Math.min(effectiveCardWidth * 0.28, 70),
     [effectiveCardWidth]

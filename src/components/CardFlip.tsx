@@ -108,27 +108,14 @@ export default function CardFlip({
     return () => loop.stop();
   }, [idleScale, idleTranslate, isFront]);
 
-  const frontAnimatedStyle = useMemo(
+  const flipAnimatedStyle = useMemo(
     () => ({
       transform: [
+        { perspective: 1000 },
         {
           rotateY: flip.interpolate({
             inputRange: [0, 180],
             outputRange: ["0deg", "180deg"],
-          }),
-        },
-      ],
-    }),
-    [flip]
-  );
-
-  const backAnimatedStyle = useMemo(
-    () => ({
-      transform: [
-        {
-          rotateY: flip.interpolate({
-            inputRange: [0, 180],
-            outputRange: ["180deg", "360deg"],
           }),
         },
       ],
@@ -157,6 +144,8 @@ export default function CardFlip({
         outputRange: [0.1, 0.22],
       }),
       transform: [
+        { translateX: -160 },
+        { translateY: -220 },
         {
           scale: glowPulse.interpolate({
             inputRange: [0, 1],
@@ -271,18 +260,12 @@ export default function CardFlip({
   };
 
   return (
-    <Pressable onPress={handleRevealPress} style={[styles.wrapper, style]}>
+    <Pressable onPress={handleRevealPress} style={styles.wrapper}>
       <Animated.View style={[styles.glow, glowStyle]} />
-      <Animated.View style={[styles.cardFrame, cardPresenceStyle]}>
-        <Animated.View
-          style={[styles.card, styles.cardBack, backAnimatedStyle]}
-        >
-          {back}
-        </Animated.View>
-        <Animated.View
-          style={[styles.card, styles.cardFront, frontAnimatedStyle]}
-        >
-          {front}
+      <Animated.View style={[styles.cardFrame, style, cardPresenceStyle]}>
+        <Animated.View style={[styles.card3d, flipAnimatedStyle]}>
+          <View style={[styles.card, styles.cardBack]}>{back}</View>
+          <View style={[styles.card, styles.cardFront]}>{front}</View>
         </Animated.View>
       </Animated.View>
     </Pressable>
@@ -291,11 +274,14 @@ export default function CardFlip({
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: "100%",
     alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
   glow: {
     position: "absolute",
+    left: "50%",
+    top: "50%",
     width: 320,
     height: 440,
     borderRadius: 200,
@@ -304,10 +290,11 @@ const styles = StyleSheet.create({
     ...shadow.glow,
   },
   cardFrame: {
-    width: "100%",
-    maxWidth: 340,
     aspectRatio: 2 / 3,
-    perspective: 1000,
+  },
+  card3d: {
+    width: "100%",
+    height: "100%",
   },
   card: {
     position: "absolute",
@@ -322,6 +309,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   cardBack: {
+    transform: [{ rotateY: "180deg" }],
     backgroundColor: colors.surface,
   },
 });

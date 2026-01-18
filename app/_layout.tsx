@@ -8,7 +8,7 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: styles.content,
+            contentStyle: { ...styles.content, flex: 1, width: "100%" },
           }}
         />
       </SafeAreaView>
@@ -19,10 +19,12 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    width: "100%",
     backgroundColor: "transparent",
   },
   safe: {
     flex: 1,
+    width: "100%",
     backgroundColor: "transparent",
   },
   header: {
