@@ -30,6 +30,17 @@ const EXPAND_DURATION = 550;
 const SHAKE_STEPS = 6;
 const SWIRL_DURATION = 800;
 const SWIRL_STEPS = 8;
+const SWIRL_RESET_DURATION = 1;
+
+export const SHUFFLE_TIMING = {
+  COLLAPSE_DURATION,
+  HOLD_BEFORE_SHAKE,
+  SHAKE_DURATION,
+  HOLD_AFTER_SHAKE,
+  SWIRL_DURATION,
+  SWIRL_RESET_DURATION,
+  EXPAND_DURATION,
+};
 
 export default function ShuffleSwirl({
   visible,
@@ -112,7 +123,7 @@ export default function ShuffleSwirl({
       }),
       Animated.timing(swirlT, {
         toValue: 0,
-        duration: 1,
+        duration: SWIRL_RESET_DURATION,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
@@ -124,7 +135,7 @@ export default function ShuffleSwirl({
       }),
       Animated.timing(swirlT, {
         toValue: 0,
-        duration: 1,
+        duration: SWIRL_RESET_DURATION,
         easing: Easing.linear,
         useNativeDriver: true,
       }),

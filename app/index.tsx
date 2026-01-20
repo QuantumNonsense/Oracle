@@ -25,7 +25,7 @@ import {
 } from "../src/decks/defaultDeck";
 import { drawNext, shuffle, type DeckState } from "../src/lib/deck";
 import CardFlip from "../src/components/CardFlip";
-import ShuffleSwirl from "../src/components/ShuffleSwirl";
+import ShuffleSwirl, { SHUFFLE_TIMING } from "../src/components/ShuffleSwirl";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
 
@@ -117,6 +117,7 @@ export default function Index() {
   const fanRef = useRef<View | null>(null);
   const rootRef = useRef<View | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
+  const fanCollapse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loadState = async () => {
@@ -206,6 +207,38 @@ export default function Index() {
     setSelectedSlot(null);
   }, []);
 
+  const startShuffle = useCallback(() => {
+    setIsShuffling(true);
+    fanCollapse.setValue(0);
+    const preExpandDuration =
+      SHUFFLE_TIMING.COLLAPSE_DURATION +
+      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE +
+      SHUFFLE_TIMING.SHAKE_DURATION +
+      SHUFFLE_TIMING.HOLD_AFTER_SHAKE +
+      SHUFFLE_TIMING.SWIRL_DURATION +
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION +
+      SHUFFLE_TIMING.SWIRL_DURATION +
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION;
+    const postCollapseDelay =
+      preExpandDuration - SHUFFLE_TIMING.COLLAPSE_DURATION;
+
+    Animated.sequence([
+      Animated.timing(fanCollapse, {
+        toValue: 1,
+        duration: SHUFFLE_TIMING.COLLAPSE_DURATION,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+      Animated.delay(Math.max(0, postCollapseDelay)),
+      Animated.timing(fanCollapse, {
+        toValue: 0,
+        duration: SHUFFLE_TIMING.EXPAND_DURATION,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fanCollapse]);
+
   const handleShufflePress = useCallback(() => {
     if (isShuffling) {
       return;
@@ -217,19 +250,19 @@ export default function Index() {
       root.measureInWindow((rootX, rootY) => {
         node.measureInWindow((x, y, w, h) => {
           setFanLayout({ x: x - rootX, y: y - rootY, w, h });
-          setIsShuffling(true);
+          startShuffle();
         });
       });
       return;
     }
     if (fanSize) {
       setFanLayout({ x: 0, y: 0, w: fanSize.w, h: fanSize.h });
-      setIsShuffling(true);
+      startShuffle();
       return;
     }
     setFanLayout(null);
-    setIsShuffling(true);
-  }, [fanSize, isShuffling]);
+    startShuffle();
+  }, [fanSize, isShuffling, startShuffle]);
 
   const handleShuffleDone = useCallback(() => {
     shuffleDeck();
@@ -345,7 +378,7 @@ export default function Index() {
     [fanCardHeight]
   );
   // Align fan visual center with the fan container center.
-  const fanBaseY = useMemo(() => spacing.lg * 1.125, []);
+  const fanBaseY = useMemo(() => spacing.lg * 1.125 - 50, []);
   const fanOffsetY = useMemo(() => 120, []);
   const fanAreaCenterX = useMemo(() => {
     const contentWidth = (layoutWidth ?? windowWidth) - spacing.lg * 2;
@@ -425,10 +458,8 @@ export default function Index() {
             }}
           >
             <View style={styles.column}>
-              <Text style={styles.title}>Today's pull</Text>
-              <Text style={styles.subtitle}>
-                Tap the card to reveal your draw.
-              </Text>
+              <Text style={styles.title}>Reveal Today's Vibe</Text>
+              <Text style={styles.subtitle} />
 
               {currentCard ? (
                 <View style={{ width: cardWidth }}>
@@ -467,7 +498,6 @@ export default function Index() {
                       {
                         width: "100%",
                         height: fanHeight,
-                        opacity: isShuffling ? 0 : 1,
                       },
                     ]}
                   >
@@ -478,6 +508,11 @@ export default function Index() {
                       const rotation = 12 - (24 / 9) * virtualIndex;
                       const offsetX = offsetFromCenter * fanCardWidth * 0.18;
                       const offsetY = -Math.abs(offsetFromCenter) * 6;
+                      const centerOffset = index - 3.5;
+                      const stackX = centerOffset * 0.6 - fanCardWidth / 2;
+                      const stackY =
+                        fanBaseY + fanOffsetY + (index % 2 === 0 ? -0.4 : 0.4);
+                      const stackRot = centerOffset * 0.6;
                       const isSelected = selectedSlot === index;
                       const liftY = Animated.multiply(
                         selectionAnim,
@@ -487,6 +522,21 @@ export default function Index() {
                         1,
                         Animated.multiply(selectionAnim, 0.08)
                       );
+                      const translateX = fanCollapse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [offsetX - fanCardWidth / 2, stackX],
+                      });
+                      const translateY = fanCollapse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [
+                          fanBaseY + fanOffsetY + offsetY,
+                          stackY,
+                        ],
+                      });
+                      const rotateZ = fanCollapse.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [`${rotation}deg`, `${stackRot}deg`],
+                      });
                       return (
                         <AnimatedPressable
                           key={`fan-card-${index}`}
@@ -501,10 +551,9 @@ export default function Index() {
                               left: fanAreaCenterX,
                               zIndex: isSelected ? 20 : index,
                               transform: [
-                                { translateX: offsetX - fanCardWidth / 2 },
-                                { translateY: fanBaseY + fanOffsetY },
-                                { translateY: offsetY },
-                                { rotate: `${rotation}deg` },
+                                { translateX },
+                                { translateY },
+                                { rotate: rotateZ },
                                 ...(isSelected
                                   ? [{ translateY: liftY }, { scale: liftScale }]
                                   : []),
@@ -528,7 +577,7 @@ export default function Index() {
                 style={[
                   styles.controls,
                   { width: cardWidth },
-                  { marginTop: spacing.sm + controlsOffset },
+                  { marginTop: spacing.sm + controlsOffset - 65 },
                 ]}
               >
                 <ThemedButton
@@ -701,10 +750,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    color: colors.text,
+    color: colors.accentLavender,
     fontSize: typography.title,
     fontWeight: "800",
     marginTop: spacing.xs,
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
   },
   subtitle: {
     color: colors.muted,
@@ -766,7 +818,7 @@ const styles = StyleSheet.create({
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: "rgba(18, 16, 36, 0.72)",
+    backgroundColor: "transparent",
     alignItems: "center",
     padding: spacing.lg,
     paddingTop: spacing.xl * 1.5,
