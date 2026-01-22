@@ -780,8 +780,6 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: radii.lg,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
     backgroundColor: colors.surfaceAlt,
   },
   fanCardImage: {
