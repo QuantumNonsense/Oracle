@@ -16,16 +16,19 @@ export function shuffle(cards: Card[]): Card[] {
 }
 
 export function drawNext(state: DeckState): { state: DeckState; card: Card } {
-  const needsShuffle = state.order.length === 0 || state.index >= state.order.length;
-  const order = needsShuffle ? shuffle(state.cards) : state.order;
-  const index = needsShuffle ? 0 : state.index;
+  const order = state.order.length === 0 ? shuffle(state.cards) : state.order;
+  const total = order.length;
+  if (total === 0) {
+    return { state, card: state.cards[0] as Card };
+  }
+  const index = state.index % total;
   const card = order[index];
   return {
     card,
     state: {
       ...state,
       order,
-      index: index + 1,
+      index: (index + 1) % total,
     },
   };
 }

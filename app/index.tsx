@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   Animated,
@@ -51,6 +58,11 @@ type FanSize = {
   h: number;
 };
 
+type FlipPair = {
+  back: ReactNode;
+  front: ReactNode;
+};
+
 const storage = {
   getItem: async (key: string) => {
     try {
@@ -100,11 +112,13 @@ export default function Index() {
   });
   const [currentCard, setCurrentCard] = useState<Card | null>(null);
   const [isFront, setIsFront] = useState(false);
+  const [flipPair, setFlipPair] = useState<FlipPair | null>(null);
+  const [isDetailMode, setIsDetailMode] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
-    null
+    null,
   );
   const [isShuffling, setIsShuffling] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -118,6 +132,73 @@ export default function Index() {
   const rootRef = useRef<View | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
   const fanCollapse = useRef(new Animated.Value(0)).current;
+  const backNode = useMemo(
+    () => <Image source={cardBackImage} style={styles.cardImage} />,
+    [],
+  );
+  const frontNode = useMemo(() => {
+    if (!currentCard) {
+      return null;
+    }
+    return <Image source={currentCard.image} style={styles.cardImage} />;
+  }, [currentCard]);
+  const detailNode = useMemo(() => {
+    if (!currentCard?.detailImage) {
+      return null;
+    }
+    return (
+      <ImageBackground
+        source={currentCard.detailImage}
+        style={styles.cardImage}
+        imageStyle={styles.cardImage}
+      >
+        <View pointerEvents="box-none" style={styles.detailOverlay}>
+          <ScrollView
+            style={styles.detailScroll}
+            contentContainerStyle={styles.detailContent}
+            showsVerticalScrollIndicator={false}
+            onStartShouldSetResponder={() => false}
+            onMoveShouldSetResponder={() => true}
+            onStartShouldSetResponderCapture={() => false}
+            onMoveShouldSetResponderCapture={() => true}
+          >
+            <Text style={styles.detailTitleText}>Mycelial Network</Text>
+            <Text style={styles.detailBodyText}>
+              The mycelial network is an underground system that connects
+              organisms, redistributes resources, and transmits information
+              across an ecosystem. Nothing within it exists independently.
+            </Text>
+            <Text style={styles.detailBodyText}>
+              Support may be arriving quietly, indirectly, or from places you
+              are not actively attending to. At the same time, influence moves
+              through these same channels. Energy flows where pathways already
+              exist. Rather than asking whether the system is good or bad,
+              observe how energy is moving through it, and where you stand
+              within that exchange.
+            </Text>
+            <Text style={styles.detailBodyText}>
+              This card invites both trust and discernment. Some connections
+              nourish you. Others subtly draw from you. Neither is inherently
+              wrong, but awareness is essential. What you are connected to is
+              shaping how you feel, how you act, and what becomes possible next.
+            </Text>
+            <Text style={styles.detailHeadingText}>Reflection Questions</Text>
+            <Text style={styles.detailBulletText}>
+              ~Where am I being supported in ways I haven't acknowledged?
+            </Text>
+            <Text style={styles.detailBulletText}>
+              ~Where does my energy naturally flow, and where does it feel
+              siphoned?
+            </Text>
+            <Text style={styles.detailBulletText}>
+              ~What might shift if I became more intentional about my
+              connections?
+            </Text>
+          </ScrollView>
+        </View>
+      </ImageBackground>
+    );
+  }, [currentCard]);
 
   useEffect(() => {
     const loadState = async () => {
@@ -182,7 +263,7 @@ export default function Index() {
       });
       setIsFront(!autoFlip);
     },
-    [persistLastCard, recordHistory]
+    [persistLastCard, recordHistory],
   );
 
   useEffect(() => {
@@ -195,6 +276,21 @@ export default function Index() {
     }, 140);
     return () => clearTimeout(timeout);
   }, [autoFlipNext, currentCard]);
+
+  useEffect(() => {
+    if (!currentCard) {
+      setFlipPair(null);
+      setIsFront(false);
+      setIsDetailMode(false);
+      return;
+    }
+    console.log("hasDetailNode", Boolean(detailNode));
+    if (frontNode) {
+      setFlipPair({ back: backNode, front: frontNode });
+    }
+    setIsFront(false);
+    setIsDetailMode(false);
+  }, [backNode, currentCard, frontNode]);
 
   const shuffleDeck = useCallback(() => {
     setDeckState((prev) => ({
@@ -269,13 +365,28 @@ export default function Index() {
     setIsShuffling(false);
   }, [shuffleDeck]);
 
-  const handleFlip = useCallback(() => {
-    if (!currentCard) {
-      drawNextCard(true);
+  const handleCardTap = useCallback(() => {
+    if (!currentCard || !flipPair) {
       return;
     }
+
+    const hasDetail = Boolean(currentCard.detailImage);
+
+    if (hasDetail && !isDetailMode && isFront && frontNode && detailNode) {
+      setFlipPair({ back: frontNode, front: detailNode });
+      setIsDetailMode(true);
+      setIsFront(false);
+      requestAnimationFrame(() => setIsFront(true));
+      return;
+    }
+
+    if (hasDetail && isDetailMode) {
+      setIsFront((prev) => !prev);
+      return;
+    }
+
     setIsFront((prev) => !prev);
-  }, [currentCard, drawNextCard]);
+  }, [currentCard, detailNode, flipPair, frontNode, isDetailMode, isFront]);
 
   const handleSelectFromFan = useCallback(
     (slotIndex: number) => {
@@ -291,7 +402,7 @@ export default function Index() {
         useNativeDriver: true,
       }).start();
     },
-    [isConfirmOpen, isShuffling, selectionAnim]
+    [isConfirmOpen, isShuffling, selectionAnim],
   );
 
   const handleConfirmSelection = useCallback(
@@ -313,7 +424,7 @@ export default function Index() {
         setSelectedSlot(null);
       });
     },
-    [drawNextCard, selectionAnim]
+    [drawNextCard, selectionAnim],
   );
 
   const toggleFavorite = useCallback(() => {
@@ -361,7 +472,7 @@ export default function Index() {
         ...entry,
         formatted: formatHistoryDate(entry.drawnAt),
       })),
-    [history]
+    [history],
   );
   const cardWidth = useMemo(() => {
     const baseWidth = layoutWidth ?? windowWidth;
@@ -370,12 +481,12 @@ export default function Index() {
   }, [layoutWidth, windowWidth]);
   const fanCardWidth = useMemo(
     () => Math.min(cardWidth * 0.55, 160),
-    [cardWidth]
+    [cardWidth],
   );
   const fanCardHeight = useMemo(() => fanCardWidth * 1.5, [fanCardWidth]);
   const fanHeight = useMemo(
     () => fanCardHeight + spacing.lg * 2.25,
-    [fanCardHeight]
+    [fanCardHeight],
   );
   // Align fan visual center with the fan container center.
   const fanBaseY = useMemo(() => spacing.lg * 1.125 - 50, []);
@@ -387,18 +498,18 @@ export default function Index() {
   }, [fanSize?.w, layoutWidth, windowWidth]);
   const fanSpacerHeight = useMemo(
     () => fanCardHeight * 0.2 + spacing.sm,
-    [fanCardHeight]
+    [fanCardHeight],
   );
   const controlsOffset = useMemo(
     () => Math.min(windowHeight * 0.25, 180),
-    [windowHeight]
+    [windowHeight],
   );
 
   const selectedCard = selectedHistoryId
-    ? cardsById.get(selectedHistoryId) ?? null
+    ? (cardsById.get(selectedHistoryId) ?? null)
     : null;
   const selectedEntry = selectedHistoryId
-    ? history.find((entry) => entry.id === selectedHistoryId) ?? null
+    ? (history.find((entry) => entry.id === selectedHistoryId) ?? null)
     : null;
   const renderHistoryItem = useCallback(
     ({ item }: { item: HistoryEntry & { formatted: string } }) => {
@@ -425,7 +536,7 @@ export default function Index() {
         </Pressable>
       );
     },
-    [setSelectedHistoryId]
+    [setSelectedHistoryId],
   );
 
   return (
@@ -462,19 +573,12 @@ export default function Index() {
               <Text style={styles.subtitle} />
 
               {currentCard ? (
-                <View style={{ width: cardWidth }}>
+                <View style={[styles.cardWrapper, { width: cardWidth }]}>
                   <CardFlip
-                    onBeforeFlip={handleFlip}
+                    onBeforeFlip={handleCardTap}
                     isFront={isFront}
-                    front={
-                      <Image
-                        source={currentCard.image}
-                        style={styles.cardImage}
-                      />
-                    }
-                    back={
-                      <Image source={cardBackImage} style={styles.cardImage} />
-                    }
+                    front={flipPair?.front ?? frontNode}
+                    back={flipPair?.back ?? backNode}
                     style={[
                       styles.cardArea,
                       {
@@ -483,6 +587,11 @@ export default function Index() {
                       },
                     ]}
                   />
+                  {currentCard.detailImage && !isDetailMode && isFront ? (
+                    <View pointerEvents="none" style={styles.tapHint}>
+                      <Text style={styles.tapHintText}>Tap to see more</Text>
+                    </View>
+                  ) : null}
                 </View>
               ) : (
                 <>
@@ -516,11 +625,11 @@ export default function Index() {
                       const isSelected = selectedSlot === index;
                       const liftY = Animated.multiply(
                         selectionAnim,
-                        fanCardHeight * 0.2
+                        fanCardHeight * 0.2,
                       );
                       const liftScale = Animated.add(
                         1,
-                        Animated.multiply(selectionAnim, 0.08)
+                        Animated.multiply(selectionAnim, 0.08),
                       );
                       const translateX = fanCollapse.interpolate({
                         inputRange: [0, 1],
@@ -528,10 +637,7 @@ export default function Index() {
                       });
                       const translateY = fanCollapse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [
-                          fanBaseY + fanOffsetY + offsetY,
-                          stackY,
-                        ],
+                        outputRange: [fanBaseY + fanOffsetY + offsetY, stackY],
                       });
                       const rotateZ = fanCollapse.interpolate({
                         inputRange: [0, 1],
@@ -555,7 +661,10 @@ export default function Index() {
                                 { translateY },
                                 { rotate: rotateZ },
                                 ...(isSelected
-                                  ? [{ translateY: liftY }, { scale: liftScale }]
+                                  ? [
+                                      { translateY: liftY },
+                                      { scale: liftScale },
+                                    ]
                                   : []),
                               ],
                             },
@@ -649,7 +758,9 @@ export default function Index() {
                   <View style={styles.modalCard}>
                     {selectedCard && selectedEntry ? (
                       <ScrollView contentContainerStyle={styles.detailContent}>
-                        <Text style={styles.modalTitle}>{selectedCard.title}</Text>
+                        <Text style={styles.modalTitle}>
+                          {selectedCard.title}
+                        </Text>
                         <Text style={styles.modalSubtitle}>
                           {formatHistoryDate(selectedEntry.drawnAt)}
                         </Text>
@@ -681,7 +792,9 @@ export default function Index() {
                     <Text style={[styles.modalTitle, styles.confirmTitle]}>
                       Confirm your pick
                     </Text>
-                    <Text style={[styles.modalSubtitle, styles.confirmSubtitle]}>
+                    <Text
+                      style={[styles.modalSubtitle, styles.confirmSubtitle]}
+                    >
                       Are you sure this is the card you want?
                     </Text>
                     <View style={styles.confirmActions}>
@@ -765,8 +878,73 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: typography.subtitle,
   },
+  cardWrapper: {
+    position: "relative",
+    alignItems: "center",
+  },
   cardArea: {
     marginBottom: spacing.md,
+  },
+  tapHint: {
+    position: "absolute",
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  tapHintText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: "600",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(18, 16, 36, 0.72)",
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    overflow: "hidden",
+  },
+  detailOverlay: {
+    position: "absolute",
+    top: 46,
+    right: 32,
+    bottom: -80,
+    left: 32,
+  },
+  detailScroll: {
+    maxHeight: "72%",
+  },
+  detailContent: {
+    padding: spacing.sm,
+    backgroundColor: "rgba(255, 255, 255, 0.55)",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  detailTitleText: {
+    color: "#000",
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: spacing.xs,
+  },
+  detailBodyText: {
+    color: "#000",
+    fontSize: 16,
+    lineHeight: 23,
+    marginBottom: spacing.sm,
+  },
+  detailHeadingText: {
+    color: "#000",
+    fontSize: 17,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  detailBulletText: {
+    color: "#000",
+    fontSize: 16,
+    lineHeight: 23,
+    marginBottom: spacing.xs,
   },
   fanArea: {
     position: "relative",
