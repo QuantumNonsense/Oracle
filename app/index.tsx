@@ -153,16 +153,18 @@ export default function Index() {
         imageStyle={styles.cardImage}
       >
         <View pointerEvents="box-none" style={styles.detailOverlay}>
+          <View style={styles.detailHeader}>
+            <Text style={styles.detailTitleText}>Mycelial Network</Text>
+          </View>
           <ScrollView
             style={styles.detailScroll}
-            contentContainerStyle={styles.detailContent}
+            contentContainerStyle={styles.detailScrollContent}
             showsVerticalScrollIndicator={false}
             onStartShouldSetResponder={() => false}
             onMoveShouldSetResponder={() => true}
             onStartShouldSetResponderCapture={() => false}
             onMoveShouldSetResponderCapture={() => true}
           >
-            <Text style={styles.detailTitleText}>Mycelial Network</Text>
             <Text style={styles.detailBodyText}>
               The mycelial network is an underground system that connects
               organisms, redistributes resources, and transmits information
@@ -906,32 +908,40 @@ const styles = StyleSheet.create({
   },
   detailOverlay: {
     position: "absolute",
+    flexDirection: "column",
     top: 46,
     right: 32,
-    bottom: -80,
+    bottom: 44,
     left: 32,
   },
   detailScroll: {
-    maxHeight: "72%",
+    flex: 1,
   },
-  detailContent: {
+  detailScrollContent: {
     padding: spacing.sm,
-    backgroundColor: "rgba(255, 255, 255, 0.55)",
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
+    paddingBottom: 32,
+    backgroundColor: "transparent",
+  },
+  detailHeader: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.12)",
   },
   detailTitleText: {
     color: "#000",
     fontSize: 22,
     fontWeight: "700",
     marginBottom: spacing.xs,
+    textAlign: "center",
   },
   detailBodyText: {
     color: "#000",
     fontSize: 16,
     lineHeight: 23,
     marginBottom: spacing.sm,
+    textAlign: "center",
   },
   detailHeadingText: {
     color: "#000",
@@ -939,12 +949,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
+    textAlign: "center",
   },
   detailBulletText: {
     color: "#000",
     fontSize: 16,
     lineHeight: 23,
     marginBottom: spacing.xs,
+    textAlign: "center",
   },
   fanArea: {
     position: "relative",
