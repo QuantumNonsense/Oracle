@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   StyleSheet,
   type StyleProp,
@@ -17,6 +18,7 @@ type CardFlipProps = {
   isFront: boolean;
   onBeforeFlip?: () => void;
   style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
 };
 
 const enableIdleBreath = true;
@@ -37,6 +39,7 @@ export default function CardFlip({
   isFront,
   onBeforeFlip,
   style,
+  disabled = false,
 }: CardFlipProps) {
   const flip = useRef(new Animated.Value(0)).current;
   const liftScale = useRef(new Animated.Value(1)).current;
@@ -47,6 +50,7 @@ export default function CardFlip({
   const isRevealing = useRef(false);
   const idleLoop = useRef<Animated.CompositeAnimation | null>(null);
   const isFrontRef = useRef(isFront);
+  const ios = Platform.OS === "ios";
 
   useEffect(() => {
     isFrontRef.current = isFront;
@@ -57,7 +61,7 @@ export default function CardFlip({
       toValue: isFront ? 180 : 0,
       duration: 380,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "ios",
     }).start();
   }, [flip, isFront]);
 
@@ -108,8 +112,8 @@ export default function CardFlip({
     return () => loop.stop();
   }, [idleScale, idleTranslate, isFront]);
 
-  const flipAnimatedStyle = useMemo(
-    () => ({
+  const flipAnimatedStyle = useMemo(() => {
+    return {
       transform: [
         { perspective: 1000 },
         {
@@ -119,9 +123,28 @@ export default function CardFlip({
           }),
         },
       ],
-    }),
-    [flip]
-  );
+    };
+  }, [flip]);
+
+  const frontOpacity = useMemo(() => {
+    if (!ios) {
+      return 1;
+    }
+    return flip.interpolate({
+      inputRange: [0, 88, 90, 92, 180],
+      outputRange: [0, 0, 0, 1, 1],
+    });
+  }, [flip, ios]);
+
+  const backOpacity = useMemo(() => {
+    if (!ios) {
+      return 1;
+    }
+    return flip.interpolate({
+      inputRange: [0, 88, 90, 92, 180],
+      outputRange: [1, 1, 0, 0, 0],
+    });
+  }, [flip, ios]);
 
   const cardPresenceStyle = useMemo(
     () => ({
@@ -199,6 +222,9 @@ export default function CardFlip({
   };
 
   const handleRevealPress = async () => {
+    if (disabled) {
+      return;
+    }
     if (isRevealing.current) {
       return;
     }
@@ -260,12 +286,35 @@ export default function CardFlip({
   };
 
   return (
-    <Pressable onPress={handleRevealPress} style={styles.wrapper}>
+    <Pressable
+      onPress={handleRevealPress}
+      style={styles.wrapper}
+      disabled={disabled}
+    >
       <Animated.View style={[styles.glow, glowStyle]} />
       <Animated.View style={[styles.cardFrame, style, cardPresenceStyle]}>
         <Animated.View style={[styles.card3d, flipAnimatedStyle]}>
-          <View style={[styles.card, styles.cardBack]}>{back}</View>
-          <View style={[styles.card, styles.cardFront]}>{front}</View>
+          <View style={[styles.card, styles.underlay]} pointerEvents="none">
+            {back}
+          </View>
+          <Animated.View
+            style={[
+              styles.card,
+              styles.cardBack,
+              Platform.OS === "ios" ? { opacity: backOpacity } : null,
+            ]}
+          >
+            {back}
+          </Animated.View>
+          <Animated.View
+            style={[
+              styles.card,
+              styles.cardFront,
+              Platform.OS === "ios" ? { opacity: frontOpacity } : null,
+            ]}
+          >
+            {front}
+          </Animated.View>
         </Animated.View>
       </Animated.View>
     </Pressable>
@@ -295,7 +344,7 @@ const styles = StyleSheet.create({
   card3d: {
     width: "100%",
     height: "100%",
-    transformStyle: "preserve-3d",
+    ...(Platform.OS === "ios" ? {} : { transformStyle: "preserve-3d" }),
   },
   card: {
     position: "absolute",
@@ -305,14 +354,22 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: radii.lg,
     overflow: "hidden",
-    backfaceVisibility: "hidden",
+    ...(Platform.OS === "ios"
+      ? { backfaceVisibility: "visible" }
+      : { backfaceVisibility: "hidden" }),
+    backgroundColor: "transparent",
+  },
+  underlay: {
     backgroundColor: colors.surface,
+    zIndex: 0,
   },
   cardFront: {
     transform: [{ rotateY: "180deg" }],
     backgroundColor: colors.surface,
+    zIndex: 2,
   },
   cardBack: {
     backgroundColor: colors.surface,
+    zIndex: 1,
   },
 });

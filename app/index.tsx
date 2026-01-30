@@ -13,7 +13,9 @@ import {
   FlatList,
   Image,
   ImageBackground,
+  InteractionManager,
   Modal,
+  PixelRatio,
   Platform,
   Pressable,
   ScrollView,
@@ -87,6 +89,17 @@ const storage = {
 
 const cardsById = new Map(cards.map((card) => [card.id, card]));
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const detailFontFamily = Platform.select({
+  ios: "Cochin",
+  android: "serif",
+  default: "Palatino, 'Palatino Linotype', 'Book Antiqua', Georgia, serif",
+});
+const detailFontFamilyBold = Platform.select({
+  ios: "Cochin-Bold",
+  android: "serif",
+  default:
+    "Palatino-Bold, 'Palatino Linotype', 'Book Antiqua', Georgia, serif",
+});
 
 const formatHistoryDate = (value: string) => {
   try {
@@ -132,6 +145,14 @@ export default function Index() {
   const rootRef = useRef<View | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
   const fanCollapse = useRef(new Animated.Value(0)).current;
+  const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const detailContentSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const isDetailModeRef = useRef(false);
+  const currentCardIdRef = useRef<string | null>(null);
   const backNode = useMemo(
     () => <Image source={cardBackImage} style={styles.cardImage} />,
     [],
@@ -142,7 +163,19 @@ export default function Index() {
     }
     return <Image source={currentCard.image} style={styles.cardImage} />;
   }, [currentCard]);
-  const detailNode = useMemo(() => {
+  const detailBgNode = useMemo(() => {
+    if (!currentCard?.detailImage) {
+      return null;
+    }
+    return (
+      <ImageBackground
+        source={currentCard.detailImage}
+        style={styles.cardImage}
+        imageStyle={styles.cardImage}
+      />
+    );
+  }, [currentCard]);
+  const detailFullNode = useMemo(() => {
     if (!currentCard?.detailImage) {
       return null;
     }
@@ -160,10 +193,6 @@ export default function Index() {
             style={styles.detailScroll}
             contentContainerStyle={styles.detailScrollContent}
             showsVerticalScrollIndicator={false}
-            onStartShouldSetResponder={() => false}
-            onMoveShouldSetResponder={() => true}
-            onStartShouldSetResponderCapture={() => false}
-            onMoveShouldSetResponderCapture={() => true}
           >
             <Text style={styles.detailBodyText}>
               The mycelial network is an underground system that connects
@@ -199,6 +228,55 @@ export default function Index() {
           </ScrollView>
         </View>
       </ImageBackground>
+    );
+  }, [currentCard]);
+  const detailOverlayNode = useMemo(() => {
+    if (!currentCard?.detailImage) {
+      return null;
+    }
+    return (
+      <View pointerEvents="box-none" style={styles.detailOverlay}>
+        <View style={styles.detailHeader}>
+          <Text style={styles.detailTitleText}>Mycelial Network</Text>
+        </View>
+        <ScrollView
+          style={styles.detailScroll}
+          contentContainerStyle={styles.detailScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.detailBodyText}>
+            The mycelial network is an underground system that connects
+            organisms, redistributes resources, and transmits information
+            across an ecosystem. Nothing within it exists independently.
+          </Text>
+          <Text style={styles.detailBodyText}>
+            Support may be arriving quietly, indirectly, or from places you are
+            not actively attending to. At the same time, influence moves
+            through these same channels. Energy flows where pathways already
+            exist. Rather than asking whether the system is good or bad,
+            observe how energy is moving through it, and where you stand within
+            that exchange.
+          </Text>
+          <Text style={styles.detailBodyText}>
+            This card invites both trust and discernment. Some connections
+            nourish you. Others subtly draw from you. Neither is inherently
+            wrong, but awareness is essential. What you are connected to is
+            shaping how you feel, how you act, and what becomes possible next.
+          </Text>
+          <Text style={styles.detailHeadingText}>Reflection Questions</Text>
+          <Text style={styles.detailBulletText}>
+            ~Where am I being supported in ways I haven't acknowledged?
+          </Text>
+          <Text style={styles.detailBulletText}>
+            ~Where does my energy naturally flow, and where does it feel
+            siphoned?
+          </Text>
+          <Text style={styles.detailBulletText}>
+            ~What might shift if I became more intentional about my
+            connections?
+          </Text>
+        </ScrollView>
+      </View>
     );
   }, [currentCard]);
 
@@ -280,13 +358,33 @@ export default function Index() {
   }, [autoFlipNext, currentCard]);
 
   useEffect(() => {
+    isDetailModeRef.current = isDetailMode;
+  }, [isDetailMode]);
+
+  useEffect(() => {
+    currentCardIdRef.current = currentCard?.id ?? null;
+  }, [currentCard]);
+
+  useEffect(() => {
+    return () => {
+      if (detailFlipTimeoutRef.current) {
+        clearTimeout(detailFlipTimeoutRef.current);
+        detailFlipTimeoutRef.current = null;
+      }
+      if (detailContentSwapTimeoutRef.current) {
+        clearTimeout(detailContentSwapTimeoutRef.current);
+        detailContentSwapTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!currentCard) {
       setFlipPair(null);
       setIsFront(false);
       setIsDetailMode(false);
       return;
     }
-    console.log("hasDetailNode", Boolean(detailNode));
     if (frontNode) {
       setFlipPair({ back: backNode, front: frontNode });
     }
@@ -373,12 +471,56 @@ export default function Index() {
     }
 
     const hasDetail = Boolean(currentCard.detailImage);
-
-    if (hasDetail && !isDetailMode && isFront && frontNode && detailNode) {
-      setFlipPair({ back: frontNode, front: detailNode });
-      setIsDetailMode(true);
+    if (
+      hasDetail &&
+      !isDetailMode &&
+      isFront &&
+      frontNode &&
+      detailBgNode &&
+      detailFullNode
+    ) {
+      if (detailFlipTimeoutRef.current) {
+        clearTimeout(detailFlipTimeoutRef.current);
+        detailFlipTimeoutRef.current = null;
+      }
+      if (detailContentSwapTimeoutRef.current) {
+        clearTimeout(detailContentSwapTimeoutRef.current);
+        detailContentSwapTimeoutRef.current = null;
+      }
+      const detailFlipFront =
+        Platform.OS === "ios" ? detailBgNode : detailFullNode;
       setIsFront(false);
-      requestAnimationFrame(() => setIsFront(true));
+      setFlipPair({ back: frontNode, front: detailFlipFront });
+      setIsDetailMode(true);
+      if (Platform.OS === "web") {
+        detailFlipTimeoutRef.current = setTimeout(() => {
+          setIsFront(true);
+          detailFlipTimeoutRef.current = null;
+        }, 0);
+        return;
+      }
+      const scheduleFlipToDetail = () => {
+        InteractionManager.runAfterInteractions(() => {
+          detailFlipTimeoutRef.current = setTimeout(() => {
+            setIsFront(true);
+            detailFlipTimeoutRef.current = null;
+          }, 50);
+        });
+      };
+      scheduleFlipToDetail();
+      if (Platform.OS !== "ios") {
+        const cardIdAtSchedule = currentCard.id;
+        detailContentSwapTimeoutRef.current = setTimeout(() => {
+          if (currentCardIdRef.current !== cardIdAtSchedule) {
+            return;
+          }
+          if (!isDetailModeRef.current) {
+            return;
+          }
+          setFlipPair({ back: frontNode, front: detailFullNode });
+          detailContentSwapTimeoutRef.current = null;
+        }, 420);
+      }
       return;
     }
 
@@ -388,7 +530,48 @@ export default function Index() {
     }
 
     setIsFront((prev) => !prev);
-  }, [currentCard, detailNode, flipPair, frontNode, isDetailMode, isFront]);
+  }, [
+    currentCard,
+    detailBgNode,
+    detailFullNode,
+    flipPair,
+    frontNode,
+    isDetailMode,
+    isFront,
+  ]);
+
+  const handleDetailBack = useCallback(() => {
+    if (!currentCard || !frontNode) {
+      return;
+    }
+    if (detailFlipTimeoutRef.current) {
+      clearTimeout(detailFlipTimeoutRef.current);
+      detailFlipTimeoutRef.current = null;
+    }
+    if (detailContentSwapTimeoutRef.current) {
+      clearTimeout(detailContentSwapTimeoutRef.current);
+      detailContentSwapTimeoutRef.current = null;
+    }
+    setIsFront(false);
+    setFlipPair({ back: backNode, front: frontNode });
+    setIsDetailMode(false);
+    const scheduleFlipToFront = () => {
+      InteractionManager.runAfterInteractions(() => {
+        detailFlipTimeoutRef.current = setTimeout(() => {
+          setIsFront(true);
+          detailFlipTimeoutRef.current = null;
+        }, 50);
+      });
+    };
+    if (Platform.OS === "web") {
+      detailFlipTimeoutRef.current = setTimeout(() => {
+        setIsFront(true);
+        detailFlipTimeoutRef.current = null;
+      }, 0);
+      return;
+    }
+    scheduleFlipToFront();
+  }, [backNode, currentCard, frontNode]);
 
   const handleSelectFromFan = useCallback(
     (slotIndex: number) => {
@@ -479,7 +662,10 @@ export default function Index() {
   const cardWidth = useMemo(() => {
     const baseWidth = layoutWidth ?? windowWidth;
     const available = baseWidth - spacing.lg * 2;
-    return Math.min(available, 340);
+    const raw = Math.min(available, 340);
+    return Platform.OS === "ios"
+      ? PixelRatio.roundToNearestPixel(raw)
+      : raw;
   }, [layoutWidth, windowWidth]);
   const fanCardWidth = useMemo(
     () => Math.min(cardWidth * 0.55, 160),
@@ -577,10 +763,12 @@ export default function Index() {
               {currentCard ? (
                 <View style={[styles.cardWrapper, { width: cardWidth }]}>
                   <CardFlip
+                    key={`${currentCard.id}:${isDetailMode ? "detail" : "front"}:${flipPair?.front ? "hasFront" : "noFront"}`}
                     onBeforeFlip={handleCardTap}
                     isFront={isFront}
                     front={flipPair?.front ?? frontNode}
                     back={flipPair?.back ?? backNode}
+                    disabled={false}
                     style={[
                       styles.cardArea,
                       {
@@ -589,6 +777,11 @@ export default function Index() {
                       },
                     ]}
                   />
+                  {Platform.OS === "ios" && isDetailMode && isFront ? (
+                    <View pointerEvents="box-none" style={styles.detailOverlayFloat}>
+                      {detailOverlayNode}
+                    </View>
+                  ) : null}
                   {currentCard.detailImage && !isDetailMode && isFront ? (
                     <View pointerEvents="none" style={styles.tapHint}>
                       <Text style={styles.tapHintText}>Tap to see more</Text>
@@ -914,6 +1107,13 @@ const styles = StyleSheet.create({
     bottom: 44,
     left: 32,
   },
+  detailOverlayFloat: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   detailScroll: {
     flex: 1,
   },
@@ -929,14 +1129,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0, 0, 0, 0.12)",
   },
+  detailBackButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.2)",
+  },
+  detailBackButtonText: {
+    color: "#000",
+    fontSize: 12,
+    fontWeight: "600",
+  },
   detailTitleText: {
+    fontFamily: detailFontFamilyBold,
     color: "#000",
     fontSize: 22,
-    fontWeight: "700",
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   detailBodyText: {
+    fontFamily: detailFontFamily,
     color: "#000",
     fontSize: 16,
     lineHeight: 23,
@@ -944,14 +1161,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   detailHeadingText: {
+    fontFamily: detailFontFamilyBold,
     color: "#000",
     fontSize: 17,
-    fontWeight: "700",
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   detailBulletText: {
+    fontFamily: detailFontFamily,
     color: "#000",
     fontSize: 16,
     lineHeight: 23,
