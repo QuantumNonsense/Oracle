@@ -33,10 +33,22 @@ import {
   type Card,
 } from "../src/decks/defaultDeck";
 import { drawNext, shuffle, type DeckState } from "../src/lib/deck";
+import { getFanSlots } from "../src/lib/fanLayout";
 import CardFlip from "../src/components/CardFlip";
-import ShuffleSwirl, { SHUFFLE_TIMING } from "../src/components/ShuffleSwirl";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
+
+const SHUFFLE_TIMING = {
+  COLLAPSE_DURATION: 550,
+  HOLD_BEFORE_SHAKE: 40,
+  SHAKE_DURATION: 1,
+  HOLD_AFTER_SHAKE: 40,
+  SWIRL_DURATION: 800,
+  SWIRL_RESET_DURATION: 1,
+  EXPAND_DURATION: 550,
+} as const;
+const SHUFFLE_SHAKE_STEPS = 6;
+const SHUFFLE_SWIRL_STEPS = 8;
 
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
@@ -46,13 +58,6 @@ type HistoryEntry = {
   id: string;
   title: string;
   drawnAt: string;
-};
-
-type FanLayout = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
 };
 
 type FanSize = {
@@ -90,15 +95,14 @@ const storage = {
 const cardsById = new Map(cards.map((card) => [card.id, card]));
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const detailFontFamily = Platform.select({
-  ios: "Cochin",
+  ios: "Palatino",
   android: "serif",
-  default: "Palatino, 'Palatino Linotype', 'Book Antiqua', Georgia, serif",
+  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
 });
 const detailFontFamilyBold = Platform.select({
-  ios: "Cochin-Bold",
+  ios: "Palatino-Bold",
   android: "serif",
-  default:
-    "Palatino-Bold, 'Palatino Linotype', 'Book Antiqua', Georgia, serif",
+  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
 });
 
 const formatHistoryDate = (value: string) => {
@@ -135,16 +139,16 @@ export default function Index() {
   );
   const [isShuffling, setIsShuffling] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
-  const [fanLayout, setFanLayout] = useState<FanLayout | null>(null);
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [autoFlipNext, setAutoFlipNext] = useState(false);
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
   const lastLayoutWidthRef = useRef<number | null>(null);
-  const fanRef = useRef<View | null>(null);
-  const rootRef = useRef<View | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
   const fanCollapse = useRef(new Animated.Value(0)).current;
+  const shuffleShake = useRef(new Animated.Value(0)).current;
+  const shuffleSwirl = useRef(new Animated.Value(0)).current;
+  const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -175,6 +179,40 @@ export default function Index() {
       />
     );
   }, [currentCard]);
+  const detailContentNode = useMemo(() => {
+    if (!currentCard) {
+      return null;
+    }
+    return (
+      <View pointerEvents="box-none" style={styles.detailOverlay}>
+        <View style={styles.detailHeader}>
+          <Text style={styles.detailTitleText}>{currentCard.title}</Text>
+        </View>
+        <ScrollView
+          style={styles.detailScroll}
+          contentContainerStyle={styles.detailScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {(currentCard.description ?? []).map((paragraph, index) => (
+            <Text key={`desc-${currentCard.id}-${index}`} style={styles.detailBodyText}>
+              {paragraph}
+            </Text>
+          ))}
+          {currentCard.reflectionQuestions &&
+          currentCard.reflectionQuestions.length > 0 ? (
+            <>
+              <Text style={styles.detailHeadingText}>Reflection Questions</Text>
+              {currentCard.reflectionQuestions.map((question, index) => (
+                <Text key={`rq-${currentCard.id}-${index}`} style={styles.detailBulletText}>
+                  ~{question}
+                </Text>
+              ))}
+            </>
+          ) : null}
+        </ScrollView>
+      </View>
+    );
+  }, [currentCard]);
   const detailFullNode = useMemo(() => {
     if (!currentCard?.detailImage) {
       return null;
@@ -185,100 +223,16 @@ export default function Index() {
         style={styles.cardImage}
         imageStyle={styles.cardImage}
       >
-        <View pointerEvents="box-none" style={styles.detailOverlay}>
-          <View style={styles.detailHeader}>
-            <Text style={styles.detailTitleText}>Mycelial Network</Text>
-          </View>
-          <ScrollView
-            style={styles.detailScroll}
-            contentContainerStyle={styles.detailScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={styles.detailBodyText}>
-              The mycelial network is an underground system that connects
-              organisms, redistributes resources, and transmits information
-              across an ecosystem. Nothing within it exists independently.
-            </Text>
-            <Text style={styles.detailBodyText}>
-              Support may be arriving quietly, indirectly, or from places you
-              are not actively attending to. At the same time, influence moves
-              through these same channels. Energy flows where pathways already
-              exist. Rather than asking whether the system is good or bad,
-              observe how energy is moving through it, and where you stand
-              within that exchange.
-            </Text>
-            <Text style={styles.detailBodyText}>
-              This card invites both trust and discernment. Some connections
-              nourish you. Others subtly draw from you. Neither is inherently
-              wrong, but awareness is essential. What you are connected to is
-              shaping how you feel, how you act, and what becomes possible next.
-            </Text>
-            <Text style={styles.detailHeadingText}>Reflection Questions</Text>
-            <Text style={styles.detailBulletText}>
-              ~Where am I being supported in ways I haven't acknowledged?
-            </Text>
-            <Text style={styles.detailBulletText}>
-              ~Where does my energy naturally flow, and where does it feel
-              siphoned?
-            </Text>
-            <Text style={styles.detailBulletText}>
-              ~What might shift if I became more intentional about my
-              connections?
-            </Text>
-          </ScrollView>
-        </View>
+        {detailContentNode}
       </ImageBackground>
     );
-  }, [currentCard]);
+  }, [currentCard, detailContentNode]);
   const detailOverlayNode = useMemo(() => {
     if (!currentCard?.detailImage) {
       return null;
     }
-    return (
-      <View pointerEvents="box-none" style={styles.detailOverlay}>
-        <View style={styles.detailHeader}>
-          <Text style={styles.detailTitleText}>Mycelial Network</Text>
-        </View>
-        <ScrollView
-          style={styles.detailScroll}
-          contentContainerStyle={styles.detailScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.detailBodyText}>
-            The mycelial network is an underground system that connects
-            organisms, redistributes resources, and transmits information
-            across an ecosystem. Nothing within it exists independently.
-          </Text>
-          <Text style={styles.detailBodyText}>
-            Support may be arriving quietly, indirectly, or from places you are
-            not actively attending to. At the same time, influence moves
-            through these same channels. Energy flows where pathways already
-            exist. Rather than asking whether the system is good or bad,
-            observe how energy is moving through it, and where you stand within
-            that exchange.
-          </Text>
-          <Text style={styles.detailBodyText}>
-            This card invites both trust and discernment. Some connections
-            nourish you. Others subtly draw from you. Neither is inherently
-            wrong, but awareness is essential. What you are connected to is
-            shaping how you feel, how you act, and what becomes possible next.
-          </Text>
-          <Text style={styles.detailHeadingText}>Reflection Questions</Text>
-          <Text style={styles.detailBulletText}>
-            ~Where am I being supported in ways I haven't acknowledged?
-          </Text>
-          <Text style={styles.detailBulletText}>
-            ~Where does my energy naturally flow, and where does it feel
-            siphoned?
-          </Text>
-          <Text style={styles.detailBulletText}>
-            ~What might shift if I became more intentional about my
-            connections?
-          </Text>
-        </ScrollView>
-      </View>
-    );
-  }, [currentCard]);
+    return detailContentNode;
+  }, [currentCard, detailContentNode]);
 
   useEffect(() => {
     const loadState = async () => {
@@ -403,67 +357,107 @@ export default function Index() {
     setSelectedSlot(null);
   }, []);
 
+  const handleShuffleDone = useCallback(() => {
+    shuffleDeck();
+    shuffleAnimRef.current?.stop();
+    fanCollapse.setValue(0);
+    shuffleShake.setValue(0);
+    shuffleSwirl.setValue(0);
+    setIsShuffling(false);
+  }, [fanCollapse, shuffleDeck, shuffleShake, shuffleSwirl]);
+
   const startShuffle = useCallback(() => {
     setIsShuffling(true);
     fanCollapse.setValue(0);
-    const preExpandDuration =
-      SHUFFLE_TIMING.COLLAPSE_DURATION +
-      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE +
-      SHUFFLE_TIMING.SHAKE_DURATION +
-      SHUFFLE_TIMING.HOLD_AFTER_SHAKE +
-      SHUFFLE_TIMING.SWIRL_DURATION +
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION +
-      SHUFFLE_TIMING.SWIRL_DURATION +
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION;
-    const postCollapseDelay =
-      preExpandDuration - SHUFFLE_TIMING.COLLAPSE_DURATION;
+    shuffleShake.setValue(0);
+    shuffleSwirl.setValue(0);
 
-    Animated.sequence([
+    const stepDuration =
+      SHUFFLE_TIMING.SHAKE_DURATION / (SHUFFLE_SHAKE_STEPS * 2);
+    const shakeSteps = Array.from({ length: SHUFFLE_SHAKE_STEPS }).flatMap(
+      () => [
+        Animated.timing(shuffleShake, {
+          toValue: 1,
+          duration: stepDuration,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shuffleShake, {
+          toValue: 0,
+          duration: stepDuration,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ],
+    );
+
+    const animation = Animated.sequence([
       Animated.timing(fanCollapse, {
         toValue: 1,
         duration: SHUFFLE_TIMING.COLLAPSE_DURATION,
         easing: Easing.inOut(Easing.sin),
         useNativeDriver: true,
       }),
-      Animated.delay(Math.max(0, postCollapseDelay)),
+      Animated.delay(SHUFFLE_TIMING.HOLD_BEFORE_SHAKE),
+      Animated.sequence(shakeSteps),
+      Animated.delay(SHUFFLE_TIMING.HOLD_AFTER_SHAKE),
+      Animated.timing(shuffleSwirl, {
+        toValue: 1,
+        duration: SHUFFLE_TIMING.SWIRL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(shuffleSwirl, {
+        toValue: 0,
+        duration: SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shuffleSwirl, {
+        toValue: 1,
+        duration: SHUFFLE_TIMING.SWIRL_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(shuffleSwirl, {
+        toValue: 0,
+        duration: SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
       Animated.timing(fanCollapse, {
         toValue: 0,
         duration: SHUFFLE_TIMING.EXPAND_DURATION,
         easing: Easing.inOut(Easing.sin),
         useNativeDriver: true,
       }),
-    ]).start();
-  }, [fanCollapse]);
+    ]);
+    shuffleAnimRef.current = animation;
+    animation.start(({ finished }) => {
+      if (finished) {
+        handleShuffleDone();
+      }
+    });
+  }, [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl]);
 
   const handleShufflePress = useCallback(() => {
     if (isShuffling) {
       return;
     }
-    const node = fanRef.current;
-    const root = rootRef.current;
-    if (node?.measureInWindow && root?.measureInWindow) {
-      // Convert window coordinates to overlay-root local coordinates.
-      root.measureInWindow((rootX, rootY) => {
-        node.measureInWindow((x, y, w, h) => {
-          setFanLayout({ x: x - rootX, y: y - rootY, w, h });
-          startShuffle();
-        });
-      });
-      return;
+    if (detailFlipTimeoutRef.current) {
+      clearTimeout(detailFlipTimeoutRef.current);
+      detailFlipTimeoutRef.current = null;
     }
-    if (fanSize) {
-      setFanLayout({ x: 0, y: 0, w: fanSize.w, h: fanSize.h });
-      startShuffle();
-      return;
+    if (detailContentSwapTimeoutRef.current) {
+      clearTimeout(detailContentSwapTimeoutRef.current);
+      detailContentSwapTimeoutRef.current = null;
     }
-    setFanLayout(null);
+    setCurrentCard(null);
+    setFlipPair(null);
+    setIsFront(false);
+    setIsDetailMode(false);
     startShuffle();
-  }, [fanSize, isShuffling, startShuffle]);
-
-  const handleShuffleDone = useCallback(() => {
-    shuffleDeck();
-    setIsShuffling(false);
-  }, [shuffleDeck]);
+  }, [isShuffling, startShuffle]);
 
   const handleCardTap = useCallback(() => {
     if (!currentCard || !flipPair) {
@@ -684,14 +678,42 @@ export default function Index() {
     const baseWidth = fanSize?.w ?? contentWidth;
     return baseWidth / 2;
   }, [fanSize?.w, layoutWidth, windowWidth]);
-  const fanSpacerHeight = useMemo(
-    () => fanCardHeight * 0.2 + spacing.sm,
-    [fanCardHeight],
+  const fanSlots = useMemo(
+    () =>
+      getFanSlots({
+        cardWidth: fanCardWidth,
+        baseY: fanBaseY + fanOffsetY,
+      }),
+    [fanBaseY, fanCardWidth, fanOffsetY],
+  );
+  const swirlRadius = useMemo(
+    () => Math.min(fanCardWidth * 0.28, 70),
+    [fanCardWidth],
+  );
+  const swirlPhase = useMemo(
+    () =>
+      shuffleSwirl.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0, 1, 0],
+      }),
+    [shuffleSwirl],
+  );
+  const swirlStepInput = useMemo(
+    () =>
+      Array.from({ length: SHUFFLE_SWIRL_STEPS + 1 }).map(
+        (_, step) => step / SHUFFLE_SWIRL_STEPS,
+      ),
+    [],
+  );
+  const swirlIndices = useMemo(
+    () => [fanSlots.length - 1, fanSlots.length - 2, fanSlots.length - 3],
+    [fanSlots.length],
   );
   const controlsOffset = useMemo(
     () => Math.min(windowHeight * 0.25, 180),
     [windowHeight],
   );
+  const cardToControlsGap = useMemo(() => 30, []);
 
   const selectedCard = selectedHistoryId
     ? (cardsById.get(selectedHistoryId) ?? null)
@@ -735,7 +757,7 @@ export default function Index() {
       resizeMode="cover"
     >
       <View pointerEvents="none" style={styles.bgTint} />
-      <View style={styles.root} ref={rootRef}>
+      <View style={styles.root}>
         <ScrollView
           style={styles.screen}
           contentInsetAdjustmentBehavior="never"
@@ -791,7 +813,6 @@ export default function Index() {
               ) : (
                 <>
                   <View
-                    ref={fanRef}
                     onLayout={(event) => {
                       const { width, height } = event.nativeEvent.layout;
                       setFanSize({ w: width, h: height });
@@ -805,39 +826,82 @@ export default function Index() {
                       },
                     ]}
                   >
-                    {Array.from({ length: 8 }).map((_, index) => {
-                      const virtualIndex = index + 1;
-                      const center = 4.5;
-                      const offsetFromCenter = virtualIndex - center;
-                      const rotation = 12 - (24 / 9) * virtualIndex;
-                      const offsetX = offsetFromCenter * fanCardWidth * 0.18;
-                      const offsetY = -Math.abs(offsetFromCenter) * 6;
+                    {fanSlots.map((slot, index) => {
                       const centerOffset = index - 3.5;
                       const stackX = centerOffset * 0.6 - fanCardWidth / 2;
                       const stackY =
-                        fanBaseY + fanOffsetY + (index % 2 === 0 ? -0.4 : 0.4);
+                        fanBaseY +
+                        fanOffsetY +
+                        (index % 2 === 0 ? -0.4 : 0.4);
                       const stackRot = centerOffset * 0.6;
+                      const depthScale = index % 2 === 0 ? -0.008 : 0.01;
+                      const isSwirl = swirlIndices.includes(index);
                       const isSelected = selectedSlot === index;
-                      const liftY = Animated.multiply(
+                      const pullOutY = Animated.multiply(
                         selectionAnim,
-                        fanCardHeight * 0.2,
-                      );
-                      const liftScale = Animated.add(
-                        1,
-                        Animated.multiply(selectionAnim, 0.08),
+                        fanCardHeight * 0.18,
                       );
                       const translateX = fanCollapse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [offsetX - fanCardWidth / 2, stackX],
+                        outputRange: [slot.x - fanCardWidth / 2, stackX],
                       });
                       const translateY = fanCollapse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [fanBaseY + fanOffsetY + offsetY, stackY],
+                        outputRange: [slot.y, stackY],
                       });
                       const rotateZ = fanCollapse.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [`${rotation}deg`, `${stackRot}deg`],
+                        outputRange: [`${slot.rot}deg`, `${stackRot}deg`],
                       });
+                      const scale = Animated.add(
+                        1,
+                        Animated.multiply(fanCollapse, depthScale),
+                      );
+                      const shakeX = Animated.multiply(
+                        fanCollapse,
+                        shuffleShake.interpolate({
+                          inputRange: [0, 0.25, 0.5, 0.75, 1],
+                          outputRange: [0, -3, 3, -2, 0],
+                        }),
+                      );
+                      const shakeY = Animated.multiply(
+                        fanCollapse,
+                        shuffleShake.interpolate({
+                          inputRange: [0, 0.25, 0.5, 0.75, 1],
+                          outputRange: [0, 2, -2, 1, 0],
+                        }),
+                      );
+                      const phaseOffset =
+                        swirlIndices.indexOf(index) * ((Math.PI * 2) / 3);
+                      const swirlXBase = isSwirl
+                        ? shuffleSwirl.interpolate({
+                            inputRange: swirlStepInput,
+                            outputRange: swirlStepInput.map(
+                              (step) =>
+                                Math.cos(step * Math.PI * 2 + phaseOffset) *
+                                swirlRadius,
+                            ),
+                          })
+                        : Animated.multiply(shuffleSwirl, 0);
+                      const swirlYBase = isSwirl
+                        ? shuffleSwirl.interpolate({
+                            inputRange: swirlStepInput,
+                            outputRange: swirlStepInput.map(
+                              (step) =>
+                                Math.sin(step * Math.PI * 2 + phaseOffset) *
+                                swirlRadius *
+                                0.65,
+                            ),
+                          })
+                        : Animated.multiply(shuffleSwirl, 0);
+                      const swirlX = Animated.multiply(swirlPhase, swirlXBase);
+                      const swirlY = Animated.multiply(swirlPhase, swirlYBase);
+                      const swirlRotate = isSwirl
+                        ? shuffleSwirl.interpolate({
+                            inputRange: [0, 0.5, 1],
+                            outputRange: ["0deg", "6deg", "0deg"],
+                          })
+                        : "0deg";
                       return (
                         <AnimatedPressable
                           key={`fan-card-${index}`}
@@ -850,15 +914,26 @@ export default function Index() {
                               width: fanCardWidth,
                               height: fanCardHeight,
                               left: fanAreaCenterX,
-                              zIndex: isSelected ? 20 : index,
+                              zIndex: index,
                               transform: [
-                                { translateX },
-                                { translateY },
+                                {
+                                  translateX: Animated.add(
+                                    translateX,
+                                    Animated.add(shakeX, swirlX),
+                                  ),
+                                },
+                                {
+                                  translateY: Animated.add(
+                                    translateY,
+                                    Animated.add(shakeY, swirlY),
+                                  ),
+                                },
                                 { rotate: rotateZ },
+                                { rotate: swirlRotate },
+                                { scale },
                                 ...(isSelected
                                   ? [
-                                      { translateY: liftY },
-                                      { scale: liftScale },
+                                      { translateY: pullOutY },
                                     ]
                                   : []),
                               ],
@@ -873,9 +948,9 @@ export default function Index() {
                       );
                     })}
                   </View>
-                  <View style={{ height: fanSpacerHeight }} />
                 </>
               )}
+              <View style={{ height: cardToControlsGap }} />
 
               <View
                 style={[
@@ -1009,14 +1084,6 @@ export default function Index() {
             </View>
           </View>
         </ScrollView>
-        <ShuffleSwirl
-          visible={isShuffling}
-          onDone={handleShuffleDone}
-          cardWidth={fanCardWidth}
-          size={fanCardWidth * 2.1}
-          anchor={fanLayout}
-          baseY={fanBaseY}
-        />
       </View>
     </ImageBackground>
   );
@@ -1078,7 +1145,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardArea: {
-    marginBottom: spacing.md,
+    marginBottom: 0,
   },
   tapHint: {
     position: "absolute",
@@ -1180,7 +1247,7 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
+    marginBottom: 0,
     marginTop: -25,
   },
   fanCard: {

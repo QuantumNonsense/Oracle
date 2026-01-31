@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Platform,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -19,6 +20,12 @@ type ThemedButtonProps = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
+
+const buttonFontFamily = Platform.select({
+  ios: "Palatino",
+  android: "serif",
+  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
+});
 
 export default function ThemedButton({
   label,
@@ -137,6 +144,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
   },
   label: {
+    fontFamily: buttonFontFamily,
     fontWeight: "700",
     fontSize: 16,
     letterSpacing: 0.2,
