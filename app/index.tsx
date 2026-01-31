@@ -150,11 +150,11 @@ export default function Index() {
   const shuffleSwirl = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
+    null,
   );
-  const detailContentSwapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const detailContentSwapTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
   const backNode = useMemo(
@@ -194,7 +194,10 @@ export default function Index() {
           showsVerticalScrollIndicator={false}
         >
           {(currentCard.description ?? []).map((paragraph, index) => (
-            <Text key={`desc-${currentCard.id}-${index}`} style={styles.detailBodyText}>
+            <Text
+              key={`desc-${currentCard.id}-${index}`}
+              style={styles.detailBodyText}
+            >
               {paragraph}
             </Text>
           ))}
@@ -203,7 +206,10 @@ export default function Index() {
             <>
               <Text style={styles.detailHeadingText}>Reflection Questions</Text>
               {currentCard.reflectionQuestions.map((question, index) => (
-                <Text key={`rq-${currentCard.id}-${index}`} style={styles.detailBulletText}>
+                <Text
+                  key={`rq-${currentCard.id}-${index}`}
+                  style={styles.detailBulletText}
+                >
                   ~{question}
                 </Text>
               ))}
@@ -657,22 +663,20 @@ export default function Index() {
     const baseWidth = layoutWidth ?? windowWidth;
     const available = baseWidth - spacing.lg * 2;
     const raw = Math.min(available, 340);
-    return Platform.OS === "ios"
-      ? PixelRatio.roundToNearestPixel(raw)
-      : raw;
+    return Platform.OS === "ios" ? PixelRatio.roundToNearestPixel(raw) : raw;
   }, [layoutWidth, windowWidth]);
   const fanCardWidth = useMemo(
     () => Math.min(cardWidth * 0.55, 160),
     [cardWidth],
   );
   const fanCardHeight = useMemo(() => fanCardWidth * 1.5, [fanCardWidth]);
-  const fanHeight = useMemo(
-    () => fanCardHeight + spacing.lg * 2.25,
-    [fanCardHeight],
-  );
   // Align fan visual center with the fan container center.
   const fanBaseY = useMemo(() => spacing.lg * 1.125 - 50, []);
   const fanOffsetY = useMemo(() => 120, []);
+  const fanHeight = useMemo(() => {
+    const contentHeight = fanBaseY + fanOffsetY + fanCardHeight + spacing.sm;
+    return Math.max(fanCardHeight + spacing.lg, contentHeight);
+  }, [fanBaseY, fanCardHeight, fanOffsetY]);
   const fanAreaCenterX = useMemo(() => {
     const contentWidth = (layoutWidth ?? windowWidth) - spacing.lg * 2;
     const baseWidth = fanSize?.w ?? contentWidth;
@@ -713,7 +717,9 @@ export default function Index() {
     () => Math.min(windowHeight * 0.25, 180),
     [windowHeight],
   );
-  const cardToControlsGap = useMemo(() => 30, []);
+  const controlsGapScale = 0.5;
+  const fanToControlsGap = useMemo(() => 50, []);
+  const cardToControlsGap = useMemo(() => 10, []);
 
   const selectedCard = selectedHistoryId
     ? (cardsById.get(selectedHistoryId) ?? null)
@@ -800,15 +806,16 @@ export default function Index() {
                     ]}
                   />
                   {Platform.OS === "ios" && isDetailMode && isFront ? (
-                    <View pointerEvents="box-none" style={styles.detailOverlayFloat}>
+                    <View
+                      pointerEvents="box-none"
+                      style={styles.detailOverlayFloat}
+                    >
                       {detailOverlayNode}
                     </View>
                   ) : null}
-                  {currentCard.detailImage && !isDetailMode && isFront ? (
-                    <View pointerEvents="none" style={styles.tapHint}>
-                      <Text style={styles.tapHintText}>Tap to see more</Text>
-                    </View>
-                  ) : null}
+                  {currentCard.detailImage && !isDetailMode && isFront
+                    ? null
+                    : null}
                 </View>
               ) : (
                 <>
@@ -830,9 +837,7 @@ export default function Index() {
                       const centerOffset = index - 3.5;
                       const stackX = centerOffset * 0.6 - fanCardWidth / 2;
                       const stackY =
-                        fanBaseY +
-                        fanOffsetY +
-                        (index % 2 === 0 ? -0.4 : 0.4);
+                        fanBaseY + fanOffsetY + (index % 2 === 0 ? -0.4 : 0.4);
                       const stackRot = centerOffset * 0.6;
                       const depthScale = index % 2 === 0 ? -0.008 : 0.01;
                       const isSwirl = swirlIndices.includes(index);
@@ -932,9 +937,7 @@ export default function Index() {
                                 { rotate: swirlRotate },
                                 { scale },
                                 ...(isSelected
-                                  ? [
-                                      { translateY: pullOutY },
-                                    ]
+                                  ? [{ translateY: pullOutY }]
                                   : []),
                               ],
                             },
@@ -950,13 +953,17 @@ export default function Index() {
                   </View>
                 </>
               )}
-              <View style={{ height: cardToControlsGap }} />
+              <View
+                style={{
+                  height: currentCard ? cardToControlsGap : fanToControlsGap,
+                }}
+              />
 
               <View
                 style={[
                   styles.controls,
                   { width: cardWidth },
-                  { marginTop: spacing.sm + controlsOffset - 65 },
+                  { marginTop: currentCard ? 0 : 40 },
                 ]}
               >
                 <ThemedButton
@@ -964,13 +971,6 @@ export default function Index() {
                   onPress={handleShufflePress}
                   variant="secondary"
                   disabled={isShuffling}
-                />
-                <ThemedButton
-                  label={isFavorite ? "Remove Favorite" : "Add to Favorites"}
-                  onPress={toggleFavorite}
-                  variant="secondary"
-                  disabled={!canFavorite}
-                  style={styles.favoriteButton}
                 />
                 <ThemedButton
                   label="Your History"
@@ -1147,25 +1147,6 @@ const styles = StyleSheet.create({
   cardArea: {
     marginBottom: 0,
   },
-  tapHint: {
-    position: "absolute",
-    bottom: 14,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  tapHintText: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: "600",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(18, 16, 36, 0.72)",
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    overflow: "hidden",
-  },
   detailOverlay: {
     position: "absolute",
     flexDirection: "column",
@@ -1216,6 +1197,7 @@ const styles = StyleSheet.create({
     fontFamily: detailFontFamilyBold,
     color: "#000",
     fontSize: 22,
+    fontStyle: "italic",
     marginBottom: spacing.xs,
     textAlign: "center",
   },
@@ -1278,9 +1260,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-  },
-  favoriteButton: {
-    backgroundColor: colors.accentPeach,
   },
   historyButton: {
     backgroundColor: colors.accentLavender,
