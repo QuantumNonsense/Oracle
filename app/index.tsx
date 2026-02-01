@@ -49,6 +49,10 @@ const SHUFFLE_TIMING = {
 } as const;
 const SHUFFLE_SHAKE_STEPS = 6;
 const SHUFFLE_SWIRL_STEPS = 8;
+const CARD_FLIP_DURATION_MS = 380;
+const DETAIL_TEXT_BLANK_MS = 200;
+const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
+const DETAIL_TEXT_LINE_STAGGER_MS = 220;
 
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
@@ -63,6 +67,11 @@ type HistoryEntry = {
 type FanSize = {
   w: number;
   h: number;
+};
+
+type LayoutFrame = {
+  y: number;
+  height: number;
 };
 
 type FlipPair = {
@@ -143,12 +152,15 @@ export default function Index() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [autoFlipNext, setAutoFlipNext] = useState(false);
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
+  const [bannerLayout, setBannerLayout] = useState<LayoutFrame | null>(null);
+  const [fanLayout, setFanLayout] = useState<LayoutFrame | null>(null);
   const lastLayoutWidthRef = useRef<number | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
   const fanCollapse = useRef(new Animated.Value(0)).current;
   const shuffleShake = useRef(new Animated.Value(0)).current;
   const shuffleSwirl = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const detailLineAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -179,46 +191,108 @@ export default function Index() {
       />
     );
   }, [currentCard]);
+  const detailLines = useMemo(() => {
+    if (!currentCard) {
+      return [];
+    }
+    const lines: Array<{ key: string; type: "title" | "body" | "heading" | "bullet"; text: string }> = [
+      { key: `title-${currentCard.id}`, type: "title", text: currentCard.title },
+    ];
+    (currentCard.description ?? []).forEach((paragraph, index) => {
+      lines.push({
+        key: `desc-${currentCard.id}-${index}`,
+        type: "body",
+        text: paragraph,
+      });
+    });
+    if (currentCard.reflectionQuestions && currentCard.reflectionQuestions.length > 0) {
+      lines.push({
+        key: `rq-heading-${currentCard.id}`,
+        type: "heading",
+        text: "Reflection Questions",
+      });
+      currentCard.reflectionQuestions.forEach((question, index) => {
+        lines.push({
+          key: `rq-${currentCard.id}-${index}`,
+          type: "bullet",
+          text: `~${question}`,
+        });
+      });
+    }
+    return lines;
+  }, [currentCard]);
+
+  const detailLineOpacities = useMemo(
+    () => detailLines.map(() => new Animated.Value(0)),
+    [detailLines.length, currentCard?.id],
+  );
+
   const detailContentNode = useMemo(() => {
     if (!currentCard) {
       return null;
     }
+    const titleLine = detailLines[0];
+    const bodyLines = detailLines.slice(1);
+    const getLineStyle = (index: number) => {
+      const opacity = detailLineOpacities[index];
+      const translateY = opacity.interpolate({
+        inputRange: [0, 1],
+        outputRange: [4, 0],
+      });
+      return { opacity, transform: [{ translateY }] };
+    };
     return (
       <View pointerEvents="box-none" style={styles.detailOverlay}>
         <View style={styles.detailHeader}>
-          <Text style={styles.detailTitleText}>{currentCard.title}</Text>
+          {titleLine ? (
+            <Animated.Text
+              style={[styles.detailTitleText, getLineStyle(0)]}
+            >
+              {titleLine.text}
+            </Animated.Text>
+          ) : null}
         </View>
         <ScrollView
           style={styles.detailScroll}
           contentContainerStyle={styles.detailScrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {(currentCard.description ?? []).map((paragraph, index) => (
-            <Text
-              key={`desc-${currentCard.id}-${index}`}
-              style={styles.detailBodyText}
-            >
-              {paragraph}
-            </Text>
-          ))}
-          {currentCard.reflectionQuestions &&
-          currentCard.reflectionQuestions.length > 0 ? (
-            <>
-              <Text style={styles.detailHeadingText}>Reflection Questions</Text>
-              {currentCard.reflectionQuestions.map((question, index) => (
-                <Text
-                  key={`rq-${currentCard.id}-${index}`}
-                  style={styles.detailBulletText}
+          {bodyLines.map((line, index) => {
+            const lineIndex = index + 1;
+            const animatedStyle = getLineStyle(lineIndex);
+            if (line.type === "heading") {
+              return (
+                <Animated.Text
+                  key={line.key}
+                  style={[styles.detailHeadingText, animatedStyle]}
                 >
-                  ~{question}
-                </Text>
-              ))}
-            </>
-          ) : null}
+                  {line.text}
+                </Animated.Text>
+              );
+            }
+            if (line.type === "bullet") {
+              return (
+                <Animated.Text
+                  key={line.key}
+                  style={[styles.detailBulletText, animatedStyle]}
+                >
+                  {line.text}
+                </Animated.Text>
+              );
+            }
+            return (
+              <Animated.Text
+                key={line.key}
+                style={[styles.detailBodyText, animatedStyle]}
+              >
+                {line.text}
+              </Animated.Text>
+            );
+          })}
         </ScrollView>
       </View>
     );
-  }, [currentCard]);
+  }, [currentCard, detailLines, detailLineOpacities]);
   const detailFullNode = useMemo(() => {
     if (!currentCard?.detailImage) {
       return null;
@@ -324,6 +398,39 @@ export default function Index() {
   useEffect(() => {
     currentCardIdRef.current = currentCard?.id ?? null;
   }, [currentCard]);
+
+  useEffect(() => {
+    detailLineAnimRef.current?.stop();
+    detailLineOpacities.forEach((value) => value.setValue(0));
+    if (!isDetailMode || !isFront) {
+      return;
+    }
+    const delay = CARD_FLIP_DURATION_MS + DETAIL_TEXT_BLANK_MS;
+    const lineAnimations = detailLineOpacities.map((value) =>
+      Animated.timing(value, {
+        toValue: 1,
+        duration: DETAIL_TEXT_LINE_REVEAL_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    );
+    const animation = Animated.sequence([
+      Animated.delay(delay),
+      Animated.stagger(DETAIL_TEXT_LINE_STAGGER_MS, lineAnimations),
+    ]);
+    detailLineAnimRef.current = animation;
+    animation.start(({ finished }) => {
+      if (finished) {
+        detailLineAnimRef.current = null;
+      }
+    });
+  }, [
+    detailLineOpacities,
+    detailLines.length,
+    isDetailMode,
+    isFront,
+    currentCard?.id,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -672,7 +779,7 @@ export default function Index() {
   const fanCardHeight = useMemo(() => fanCardWidth * 1.5, [fanCardWidth]);
   // Align fan visual center with the fan container center.
   const fanBaseY = useMemo(() => spacing.lg * 1.125 - 50, []);
-  const fanOffsetY = useMemo(() => 120, []);
+  const [fanOffsetY, setFanOffsetY] = useState(88);
   const fanHeight = useMemo(() => {
     const contentHeight = fanBaseY + fanOffsetY + fanCardHeight + spacing.sm;
     return Math.max(fanCardHeight + spacing.lg, contentHeight);
@@ -689,6 +796,10 @@ export default function Index() {
         baseY: fanBaseY + fanOffsetY,
       }),
     [fanBaseY, fanCardWidth, fanOffsetY],
+  );
+  const fanMinCardY = useMemo(
+    () => Math.min(...fanSlots.map((slot) => slot.y)),
+    [fanSlots],
   );
   const swirlRadius = useMemo(
     () => Math.min(fanCardWidth * 0.28, 70),
@@ -720,6 +831,32 @@ export default function Index() {
   const controlsGapScale = 0.5;
   const fanToControlsGap = useMemo(() => 50, []);
   const cardToControlsGap = useMemo(() => 10, []);
+  const bannerToFanGapOffset = useMemo(() => -17, []);
+
+  useEffect(() => {
+    if (currentCard) {
+      return;
+    }
+    if (!bannerLayout || !fanLayout) {
+      return;
+    }
+    const bannerBottom = bannerLayout.y + bannerLayout.height;
+    const fanTop = fanLayout.y + fanMinCardY;
+    const currentGap = fanTop - bannerBottom;
+    const targetGap = fanToControlsGap + bannerToFanGapOffset;
+    const delta = targetGap - currentGap;
+    if (Math.abs(delta) < 1) {
+      return;
+    }
+    setFanOffsetY((prev) => prev + delta);
+  }, [
+    bannerLayout,
+    currentCard,
+    fanLayout,
+    fanMinCardY,
+    fanToControlsGap,
+    bannerToFanGapOffset,
+  ]);
 
   const selectedCard = selectedHistoryId
     ? (cardsById.get(selectedHistoryId) ?? null)
@@ -785,9 +922,15 @@ export default function Index() {
             }}
           >
             <View style={styles.column}>
-              <Text style={styles.title}>Reveal Today's Vibe</Text>
-              <Text style={styles.subtitle} />
-
+              <Image
+                source={require("../assets/banner.png")}
+                style={styles.banner}
+                resizeMode="contain"
+                onLayout={(event) => {
+                  const { y, height } = event.nativeEvent.layout;
+                  setBannerLayout({ y, height });
+                }}
+              />
               {currentCard ? (
                 <View style={[styles.cardWrapper, { width: cardWidth }]}>
                   <CardFlip
@@ -821,8 +964,9 @@ export default function Index() {
                 <>
                   <View
                     onLayout={(event) => {
-                      const { width, height } = event.nativeEvent.layout;
+                      const { width, height, y } = event.nativeEvent.layout;
                       setFanSize({ w: width, h: height });
+                      setFanLayout({ y, height });
                     }}
                     pointerEvents={isShuffling ? "none" : "auto"}
                     style={[
@@ -1133,10 +1277,17 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 3,
   },
+  banner: {
+    width: "100%",
+    maxWidth: 640,
+    height: 140,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+  },
   subtitle: {
     color: colors.muted,
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
+    marginTop: 0,
+    marginBottom: spacing.xs,
     textAlign: "center",
     fontSize: typography.subtitle,
   },
@@ -1230,7 +1381,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 0,
-    marginTop: -25,
+    marginTop: 0,
   },
   fanCard: {
     position: "absolute",
