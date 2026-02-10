@@ -21,6 +21,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   Text,
   useWindowDimensions,
   View,
@@ -59,6 +60,7 @@ const DETAIL_TEXT_LINE_STAGGER_MS = 220;
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
+const JOURNAL_KEY = "oracle:journals:v1";
 
 type HistoryEntry = {
   id: string;
@@ -108,7 +110,8 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const appFontFamily = Platform.select({
   ios: "TudorRose",
   android: "TudorRose",
-  default: "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
+  default:
+    "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
 });
 const detailFontFamily = appFontFamily;
 const detailFontFamilyBold = appFontFamily;
@@ -125,6 +128,45 @@ const formatHistoryDate = (value: string) => {
   } catch (error) {
     return new Date(value).toLocaleString();
   }
+};
+
+const buildDetailLines = (card: Card | null) => {
+  if (!card) {
+    return [];
+  }
+  const lines: Array<{
+    key: string;
+    type: "title" | "body" | "heading" | "bullet";
+    text: string;
+  }> = [
+    {
+      key: `title-${card.id}`,
+      type: "title",
+      text: card.title,
+    },
+  ];
+  (card.description ?? []).forEach((paragraph, index) => {
+    lines.push({
+      key: `desc-${card.id}-${index}`,
+      type: "body",
+      text: paragraph,
+    });
+  });
+  if (card.reflectionQuestions && card.reflectionQuestions.length > 0) {
+    lines.push({
+      key: `rq-heading-${card.id}`,
+      type: "heading",
+      text: "Reflection Questions",
+    });
+    card.reflectionQuestions.forEach((question, index) => {
+      lines.push({
+        key: `rq-${card.id}-${index}`,
+        type: "bullet",
+        text: `~${question}`,
+      });
+    });
+  }
+  return lines;
 };
 
 export default function Index() {
@@ -146,6 +188,16 @@ export default function Index() {
   const [isDetailMode, setIsDetailMode] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
+  const [journalEntries, setJournalEntries] = useState<Record<string, string>>(
+    {},
+  );
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [journalDraft, setJournalDraft] = useState("");
+  const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
+  const [selectedJournalId, setSelectedJournalId] = useState<string | null>(
+    null,
+  );
+  const [isJournalCardFront, setIsJournalCardFront] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
     null,
@@ -169,6 +221,7 @@ export default function Index() {
     null,
   );
   const tapHintAnim = useRef(new Animated.Value(0)).current;
+  const readMoreAnim = useRef(new Animated.Value(0)).current;
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -196,36 +249,18 @@ export default function Index() {
       />
     );
   }, [currentCard]);
-  const detailLines = useMemo(() => {
-    if (!currentCard) {
-      return [];
-    }
-    const lines: Array<{ key: string; type: "title" | "body" | "heading" | "bullet"; text: string }> = [
-      { key: `title-${currentCard.id}`, type: "title", text: currentCard.title },
-    ];
-    (currentCard.description ?? []).forEach((paragraph, index) => {
-      lines.push({
-        key: `desc-${currentCard.id}-${index}`,
-        type: "body",
-        text: paragraph,
-      });
-    });
-    if (currentCard.reflectionQuestions && currentCard.reflectionQuestions.length > 0) {
-      lines.push({
-        key: `rq-heading-${currentCard.id}`,
-        type: "heading",
-        text: "Reflection Questions",
-      });
-      currentCard.reflectionQuestions.forEach((question, index) => {
-        lines.push({
-          key: `rq-${currentCard.id}-${index}`,
-          type: "bullet",
-          text: `~${question}`,
-        });
-      });
-    }
-    return lines;
-  }, [currentCard]);
+  const journalEntryList = useMemo(
+    () =>
+      Object.entries(journalEntries)
+        .map(([id, entry]) => ({
+          id,
+          entry,
+          title: cardsById.get(id)?.title ?? "Card",
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    [journalEntries],
+  );
+  const detailLines = useMemo(() => buildDetailLines(currentCard), [currentCard]);
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
@@ -250,9 +285,7 @@ export default function Index() {
       <View pointerEvents="box-none" style={styles.detailOverlay}>
         <View style={styles.detailHeader}>
           {titleLine ? (
-            <Animated.Text
-              style={[styles.detailTitleText, getLineStyle(0)]}
-            >
+            <Animated.Text style={[styles.detailTitleText, getLineStyle(0)]}>
               {titleLine.text}
             </Animated.Text>
           ) : null}
@@ -321,11 +354,13 @@ export default function Index() {
 
   useEffect(() => {
     const loadState = async () => {
-      const [storedFavorites, storedLast, storedHistory] = await Promise.all([
-        storage.getItem(FAVORITES_KEY),
-        storage.getItem(LAST_CARD_KEY),
-        storage.getItem(HISTORY_KEY),
-      ]);
+      const [storedFavorites, storedLast, storedHistory, storedJournals] =
+        await Promise.all([
+          storage.getItem(FAVORITES_KEY),
+          storage.getItem(LAST_CARD_KEY),
+          storage.getItem(HISTORY_KEY),
+          storage.getItem(JOURNAL_KEY),
+        ]);
 
       if (storedFavorites) {
         try {
@@ -344,6 +379,15 @@ export default function Index() {
           setHistory(parsed);
         } catch (error) {
           setHistory([]);
+        }
+      }
+
+      if (storedJournals) {
+        try {
+          const parsed = JSON.parse(storedJournals) as Record<string, string>;
+          setJournalEntries(parsed);
+        } catch (error) {
+          setJournalEntries({});
         }
       }
     };
@@ -369,6 +413,75 @@ export default function Index() {
   const persistFavorites = useCallback((next: Record<string, boolean>) => {
     void storage.setItem(FAVORITES_KEY, JSON.stringify(next));
   }, []);
+
+  const persistJournals = useCallback((next: Record<string, string>) => {
+    void storage.setItem(JOURNAL_KEY, JSON.stringify(next));
+  }, []);
+
+  const openJournal = useCallback(() => {
+    if (!currentCard) {
+      return;
+    }
+    setJournalDraft(journalEntries[currentCard.id] ?? "");
+    setIsJournalOpen(true);
+  }, [currentCard, journalEntries]);
+
+  const saveJournal = useCallback(() => {
+    if (!currentCard) {
+      setIsJournalOpen(false);
+      return;
+    }
+    const trimmed = journalDraft.trim();
+    setJournalEntries((prev) => {
+      if (!trimmed) {
+        const { [currentCard.id]: _omit, ...rest } = prev;
+        persistJournals(rest);
+        return rest;
+      }
+      const next = { ...prev, [currentCard.id]: trimmed };
+      persistJournals(next);
+      return next;
+    });
+    setIsJournalOpen(false);
+  }, [currentCard, journalDraft, persistJournals]);
+
+  const resetApp = useCallback(() => {
+    shuffleAnimRef.current?.stop();
+    detailLineAnimRef.current?.stop();
+    if (detailFlipTimeoutRef.current) {
+      clearTimeout(detailFlipTimeoutRef.current);
+      detailFlipTimeoutRef.current = null;
+    }
+    if (detailContentSwapTimeoutRef.current) {
+      clearTimeout(detailContentSwapTimeoutRef.current);
+      detailContentSwapTimeoutRef.current = null;
+    }
+    shuffleShake.setValue(0);
+    shuffleSwirl.setValue(0);
+    selectionAnim.setValue(0);
+    fanCollapse.setValue(0);
+    setDeckState({ cards: drawableCards, order: [], index: 0 });
+    setCurrentCard(null);
+    setFlipPair(null);
+    setIsFront(false);
+    setIsDetailMode(false);
+    setHistory([]);
+    setFavorites({});
+    setSelectedHistoryId(null);
+    setIsHistoryOpen(false);
+    setSelectedSlot(null);
+    setIsConfirmOpen(false);
+    setAutoFlipNext(false);
+    setIsShuffling(false);
+    setFanOffsetY(88);
+    setIsJournalOpen(false);
+    setIsJournalEntriesOpen(false);
+    setSelectedJournalId(null);
+    setJournalDraft("");
+    void storage.setItem(HISTORY_KEY, JSON.stringify([]));
+    void storage.setItem(FAVORITES_KEY, JSON.stringify({}));
+    void storage.setItem(LAST_CARD_KEY, "");
+  }, [fanCollapse, selectionAnim, shuffleShake, shuffleSwirl, shuffleAnimRef]);
 
   const drawNextCard = useCallback(
     (autoFlip = false) => {
@@ -403,6 +516,12 @@ export default function Index() {
   useEffect(() => {
     currentCardIdRef.current = currentCard?.id ?? null;
   }, [currentCard]);
+
+  useEffect(() => {
+    if (selectedJournalId) {
+      setIsJournalCardFront(true);
+    }
+  }, [selectedJournalId]);
 
   useEffect(() => {
     detailLineAnimRef.current?.stop();
@@ -889,6 +1008,27 @@ export default function Index() {
   }, [isConfirmOpen, tapHintAnim]);
 
   useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(readMoreAnim, {
+          toValue: 1,
+          duration: 520,
+          easing: Easing.out(Easing.back(1.6)),
+          useNativeDriver: true,
+        }),
+        Animated.timing(readMoreAnim, {
+          toValue: 0,
+          duration: 520,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [readMoreAnim]);
+
+  useEffect(() => {
     if (currentCard) {
       return;
     }
@@ -919,6 +1059,29 @@ export default function Index() {
   const selectedEntry = selectedHistoryId
     ? (history.find((entry) => entry.id === selectedHistoryId) ?? null)
     : null;
+  const selectedJournalCard = selectedJournalId
+    ? (cardsById.get(selectedJournalId) ?? null)
+    : null;
+  const journalDetailText = useMemo(() => {
+    if (!selectedJournalCard) {
+      return "No description available.";
+    }
+    const lines = buildDetailLines(selectedJournalCard).slice(1);
+    if (lines.length === 0) {
+      return "No description available.";
+    }
+    return lines
+      .map((line) => {
+        if (line.type === "heading") {
+          return line.text;
+        }
+        if (line.type === "bullet") {
+          return `• ${line.text.replace(/^~/, "")}`;
+        }
+        return line.text;
+      })
+      .join("\n\n");
+  }, [selectedJournalCard]);
   const renderHistoryItem = useCallback(
     ({ item }: { item: HistoryEntry & { formatted: string } }) => {
       const rowCard = cardsById.get(item.id) ?? null;
@@ -945,6 +1108,36 @@ export default function Index() {
       );
     },
     [setSelectedHistoryId],
+  );
+  const renderJournalEntry = useCallback(
+    ({ item }: { item: { id: string; title: string; entry: string } }) => {
+      const card = cardsById.get(item.id) ?? null;
+      return (
+        <Pressable
+          style={styles.journalEntry}
+          onPress={() => {
+            setSelectedJournalId(item.id);
+            setIsJournalEntriesOpen(false);
+          }}
+          accessibilityLabel={`Open journal entry for ${item.title}`}
+        >
+          <View style={styles.journalEntryThumb}>
+            {card ? (
+              <Image source={card.image} style={styles.journalEntryThumbImage} />
+            ) : (
+              <View style={styles.thumbnailFallback} />
+            )}
+          </View>
+          <View style={styles.journalEntryContent}>
+            <Text style={styles.journalEntryTitle}>{item.title}</Text>
+            <Text style={styles.journalEntryBody} numberOfLines={2}>
+              {item.entry}
+            </Text>
+          </View>
+        </Pressable>
+      );
+    },
+    [],
   );
 
   if (!fontsLoaded) {
@@ -1072,279 +1265,480 @@ export default function Index() {
               </Animated.Text>
             ) : null}
             {currentCard ? (
-                <View style={[styles.cardWrapper, { width: cardWidth }]}>
-                  <CardFlip
-                    key={`${currentCard.id}:${isDetailMode ? "detail" : "front"}:${flipPair?.front ? "hasFront" : "noFront"}`}
-                    onBeforeFlip={handleCardTap}
-                    isFront={isFront}
-                    front={flipPair?.front ?? frontNode}
-                    back={flipPair?.back ?? backNode}
-                    disabled={false}
+              <View style={[styles.cardWrapper, { width: cardWidth }]}>
+                <CardFlip
+                  key={`${currentCard.id}:${isDetailMode ? "detail" : "front"}:${flipPair?.front ? "hasFront" : "noFront"}`}
+                  onBeforeFlip={handleCardTap}
+                  isFront={isFront}
+                  front={flipPair?.front ?? frontNode}
+                  back={flipPair?.back ?? backNode}
+                  disabled={false}
+                  style={[
+                    styles.cardArea,
+                    {
+                      width: cardWidth,
+                      aspectRatio: 2 / 3,
+                    },
+                  ]}
+                />
+                {!isDetailMode ? (
+                  <Animated.Text
                     style={[
-                      styles.cardArea,
+                      styles.readMoreHint,
                       {
-                        width: cardWidth,
-                        aspectRatio: 2 / 3,
-                      },
-                    ]}
-                  />
-                  {Platform.OS === "ios" && isDetailMode && isFront ? (
-                    <View
-                      pointerEvents="box-none"
-                      style={styles.detailOverlayFloat}
-                    >
-                      {detailOverlayNode}
-                    </View>
-                  ) : null}
-                  {currentCard.detailImage && !isDetailMode && isFront
-                    ? null
-                    : null}
-                </View>
-              ) : (
-                <>
-                  <View
-                    onLayout={(event) => {
-                      const { width, height, y } = event.nativeEvent.layout;
-                      setFanSize({ w: width, h: height });
-                      setFanLayout({ y, height });
-                    }}
-                    pointerEvents={isShuffling ? "none" : "auto"}
-                    style={[
-                      styles.fanArea,
-                      {
-                        width: "100%",
-                        height: fanHeight,
+                        opacity: readMoreAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.75, 1],
+                        }),
+                        transform: [
+                          {
+                            scale: readMoreAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.98, 1.07],
+                            }),
+                          },
+                        ],
                       },
                     ]}
                   >
-                    {fanSlots.map((slot, index) => {
-                      const centerOffset = index - 3.5;
-                      const stackX = centerOffset * 0.6 - fanCardWidth / 2;
-                      const stackY =
-                        fanBaseY + fanOffsetY + (index % 2 === 0 ? -0.4 : 0.4);
-                      const stackRot = centerOffset * 0.6;
-                      const depthScale = index % 2 === 0 ? -0.008 : 0.01;
-                      const isSwirl = swirlIndices.includes(index);
-                      const isSelected = selectedSlot === index;
-                      const pullOutY = Animated.multiply(
-                        selectionAnim,
-                        fanCardHeight * 0.18,
-                      );
-                      const translateX = fanCollapse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [slot.x - fanCardWidth / 2, stackX],
-                      });
-                      const translateY = fanCollapse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [slot.y, stackY],
-                      });
-                      const rotateZ = fanCollapse.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [`${slot.rot}deg`, `${stackRot}deg`],
-                      });
-                      const scale = Animated.add(
-                        1,
-                        Animated.multiply(fanCollapse, depthScale),
-                      );
-                      const shakeX = Animated.multiply(
-                        fanCollapse,
-                        shuffleShake.interpolate({
-                          inputRange: [0, 0.25, 0.5, 0.75, 1],
-                          outputRange: [0, -3, 3, -2, 0],
-                        }),
-                      );
-                      const shakeY = Animated.multiply(
-                        fanCollapse,
-                        shuffleShake.interpolate({
-                          inputRange: [0, 0.25, 0.5, 0.75, 1],
-                          outputRange: [0, 2, -2, 1, 0],
-                        }),
-                      );
-                      const phaseOffset =
-                        swirlIndices.indexOf(index) * ((Math.PI * 2) / 3);
-                      const swirlXBase = isSwirl
-                        ? shuffleSwirl.interpolate({
-                            inputRange: swirlStepInput,
-                            outputRange: swirlStepInput.map(
-                              (step) =>
-                                Math.cos(step * Math.PI * 2 + phaseOffset) *
-                                swirlRadius,
-                            ),
-                          })
-                        : Animated.multiply(shuffleSwirl, 0);
-                      const swirlYBase = isSwirl
-                        ? shuffleSwirl.interpolate({
-                            inputRange: swirlStepInput,
-                            outputRange: swirlStepInput.map(
-                              (step) =>
-                                Math.sin(step * Math.PI * 2 + phaseOffset) *
-                                swirlRadius *
-                                0.65,
-                            ),
-                          })
-                        : Animated.multiply(shuffleSwirl, 0);
-                      const swirlX = Animated.multiply(swirlPhase, swirlXBase);
-                      const swirlY = Animated.multiply(swirlPhase, swirlYBase);
-                      const swirlRotate = isSwirl
-                        ? shuffleSwirl.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: ["0deg", "6deg", "0deg"],
-                          })
-                        : "0deg";
-                      return (
-                        <AnimatedPressable
-                          key={`fan-card-${index}`}
-                          onPress={() => handleSelectFromFan(index)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Pick card ${index + 1}`}
-                          style={[
-                            styles.fanCard,
-                            {
-                              width: fanCardWidth,
-                              height: fanCardHeight,
-                              left: fanAreaCenterX,
-                              zIndex: index,
-                              transform: [
-                                {
-                                  translateX: Animated.add(
-                                    translateX,
-                                    Animated.add(shakeX, swirlX),
-                                  ),
-                                },
-                                {
-                                  translateY: Animated.add(
-                                    translateY,
-                                    Animated.add(shakeY, swirlY),
-                                  ),
-                                },
-                                { rotate: rotateZ },
-                                { rotate: swirlRotate },
-                                { scale },
-                                ...(isSelected
-                                  ? [{ translateY: pullOutY }]
-                                  : []),
-                              ],
-                            },
-                          ]}
-                        >
-                          <Image
-                            source={cardBackImage}
-                            style={styles.fanCardImage}
-                          />
-                          {isSelected && isConfirmOpen ? null : null}
-                        </AnimatedPressable>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-              <View
-                style={{
-                  height: currentCard ? cardToControlsGap : fanToControlsGap,
-                }}
-              />
-
-              <View
-                style={[
-                  styles.controls,
-                  { width: cardWidth },
-                  { marginTop: currentCard ? 0 : 40 },
-                ]}
-              >
-                <Pressable
-                  onPress={handleShufflePress}
-                  disabled={isShuffling}
-                  accessibilityRole="button"
-                  accessibilityLabel="Shuffle"
-                  style={({ pressed }) => [
-                    styles.shuffleButton,
-                    pressed && !isShuffling && styles.shuffleButtonPressed,
-                  ]}
-                >
-                  <Image
-                    source={shuffleImage}
-                    style={styles.shuffleButtonImage}
-                    resizeMode="contain"
-                  />
-                </Pressable>
-              </View>
-
-              <Modal transparent visible={isHistoryOpen} animationType="fade">
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalCard}>
-                    <View style={styles.modalHeader}>
-                      <Text style={styles.modalTitle}>Your History</Text>
-                      <ThemedButton
-                        label="Close"
-                        onPress={() => {
-                          setSelectedHistoryId(null);
-                          setIsHistoryOpen(false);
-                        }}
-                        variant="ghost"
-                        style={styles.modalCloseButton}
-                      />
-                    </View>
-                    {formattedHistory.length === 0 ? (
-                      <Text style={styles.modalEmpty}>No cards drawn yet.</Text>
-                    ) : (
-                      <FlatList
-                        data={formattedHistory}
-                        renderItem={renderHistoryItem}
-                        keyExtractor={(item) => `${item.id}-${item.drawnAt}`}
-                        numColumns={3}
-                        columnWrapperStyle={styles.historyRow}
-                        contentContainerStyle={styles.historyGrid}
-                        showsVerticalScrollIndicator={false}
-                        style={styles.modalList}
-                      />
-                    )}
+                    Tap to read more
+                  </Animated.Text>
+                ) : null}
+                {isDetailMode ? (
+                  <View style={styles.cardActions}>
                     <ThemedButton
-                      label="Clear History"
-                      onPress={confirmClearHistory}
+                      label="Reset"
+                      onPress={resetApp}
                       variant="ghost"
-                      style={styles.clearButton}
+                      style={styles.cardActionButton}
+                      labelStyle={styles.cardActionLabel}
+                    />
+                    <ThemedButton
+                      label="Journal"
+                      onPress={openJournal}
+                      variant="secondary"
+                      style={styles.cardActionButton}
+                      labelStyle={styles.cardActionLabel}
                     />
                   </View>
+                ) : null}
+                {Platform.OS === "ios" && isDetailMode && isFront ? (
+                  <View
+                    pointerEvents="box-none"
+                    style={styles.detailOverlayFloat}
+                  >
+                    {detailOverlayNode}
+                  </View>
+                ) : null}
+                {currentCard.detailImage && !isDetailMode && isFront
+                  ? null
+                  : null}
+              </View>
+            ) : (
+              <>
+                <View
+                  onLayout={(event) => {
+                    const { width, height, y } = event.nativeEvent.layout;
+                    setFanSize({ w: width, h: height });
+                    setFanLayout({ y, height });
+                  }}
+                  pointerEvents={isShuffling ? "none" : "auto"}
+                  style={[
+                    styles.fanArea,
+                    {
+                      width: "100%",
+                      height: fanHeight,
+                    },
+                  ]}
+                >
+                  {fanSlots.map((slot, index) => {
+                    const centerOffset = index - 3.5;
+                    const stackX = centerOffset * 0.6 - fanCardWidth / 2;
+                    const stackY =
+                      fanBaseY + fanOffsetY + (index % 2 === 0 ? -0.4 : 0.4);
+                    const stackRot = centerOffset * 0.6;
+                    const depthScale = index % 2 === 0 ? -0.008 : 0.01;
+                    const isSwirl = swirlIndices.includes(index);
+                    const isSelected = selectedSlot === index;
+                    const pullOutY = Animated.multiply(
+                      selectionAnim,
+                      fanCardHeight * 0.18,
+                    );
+                    const translateX = fanCollapse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [slot.x - fanCardWidth / 2, stackX],
+                    });
+                    const translateY = fanCollapse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [slot.y, stackY],
+                    });
+                    const rotateZ = fanCollapse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [`${slot.rot}deg`, `${stackRot}deg`],
+                    });
+                    const scale = Animated.add(
+                      1,
+                      Animated.multiply(fanCollapse, depthScale),
+                    );
+                    const shakeX = Animated.multiply(
+                      fanCollapse,
+                      shuffleShake.interpolate({
+                        inputRange: [0, 0.25, 0.5, 0.75, 1],
+                        outputRange: [0, -3, 3, -2, 0],
+                      }),
+                    );
+                    const shakeY = Animated.multiply(
+                      fanCollapse,
+                      shuffleShake.interpolate({
+                        inputRange: [0, 0.25, 0.5, 0.75, 1],
+                        outputRange: [0, 2, -2, 1, 0],
+                      }),
+                    );
+                    const phaseOffset =
+                      swirlIndices.indexOf(index) * ((Math.PI * 2) / 3);
+                    const swirlXBase = isSwirl
+                      ? shuffleSwirl.interpolate({
+                          inputRange: swirlStepInput,
+                          outputRange: swirlStepInput.map(
+                            (step) =>
+                              Math.cos(step * Math.PI * 2 + phaseOffset) *
+                              swirlRadius,
+                          ),
+                        })
+                      : Animated.multiply(shuffleSwirl, 0);
+                    const swirlYBase = isSwirl
+                      ? shuffleSwirl.interpolate({
+                          inputRange: swirlStepInput,
+                          outputRange: swirlStepInput.map(
+                            (step) =>
+                              Math.sin(step * Math.PI * 2 + phaseOffset) *
+                              swirlRadius *
+                              0.65,
+                          ),
+                        })
+                      : Animated.multiply(shuffleSwirl, 0);
+                    const swirlX = Animated.multiply(swirlPhase, swirlXBase);
+                    const swirlY = Animated.multiply(swirlPhase, swirlYBase);
+                    const swirlRotate = isSwirl
+                      ? shuffleSwirl.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: ["0deg", "6deg", "0deg"],
+                        })
+                      : "0deg";
+                    return (
+                      <AnimatedPressable
+                        key={`fan-card-${index}`}
+                        onPress={() => handleSelectFromFan(index)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Pick card ${index + 1}`}
+                        style={[
+                          styles.fanCard,
+                          {
+                            width: fanCardWidth,
+                            height: fanCardHeight,
+                            left: fanAreaCenterX,
+                            zIndex: index,
+                            transform: [
+                              {
+                                translateX: Animated.add(
+                                  translateX,
+                                  Animated.add(shakeX, swirlX),
+                                ),
+                              },
+                              {
+                                translateY: Animated.add(
+                                  translateY,
+                                  Animated.add(shakeY, swirlY),
+                                ),
+                              },
+                              { rotate: rotateZ },
+                              { rotate: swirlRotate },
+                              { scale },
+                              ...(isSelected ? [{ translateY: pullOutY }] : []),
+                            ],
+                          },
+                        ]}
+                      >
+                        <Image
+                          source={cardBackImage}
+                          style={styles.fanCardImage}
+                        />
+                        {isSelected && isConfirmOpen ? null : null}
+                      </AnimatedPressable>
+                    );
+                  })}
                 </View>
-              </Modal>
+              </>
+            )}
+            <View
+              style={{
+                height: currentCard ? cardToControlsGap : fanToControlsGap,
+              }}
+            />
 
-              <Modal
-                transparent
-                visible={selectedHistoryId !== null}
-                animationType="fade"
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalCard}>
-                    {selectedCard && selectedEntry ? (
-                      <ScrollView contentContainerStyle={styles.detailContent}>
-                        <Text style={styles.modalTitle}>
-                          {selectedCard.title}
-                        </Text>
-                        <Text style={styles.modalSubtitle}>
-                          {formatHistoryDate(selectedEntry.drawnAt)}
-                        </Text>
-                        <View style={styles.detailImageWrap}>
-                          <Image
-                            source={selectedCard.image}
-                            style={styles.detailImage}
-                          />
-                        </View>
-                      </ScrollView>
-                    ) : (
-                      <Text style={styles.modalEmpty}>
-                        Card image not available.
-                      </Text>
-                    )}
+            <View
+              style={[
+                styles.controls,
+                { width: cardWidth },
+                { marginTop: currentCard ? 0 : 40 },
+              ]}
+            >
+              {!currentCard && !isConfirmOpen ? (
+                <>
+                  <Pressable
+                    onPress={handleShufflePress}
+                    disabled={isShuffling}
+                    accessibilityRole="button"
+                    accessibilityLabel="Shuffle"
+                    style={({ pressed }) => [
+                      styles.shuffleButton,
+                      pressed && !isShuffling && styles.shuffleButtonPressed,
+                    ]}
+                  >
+                    <Image
+                      source={shuffleImage}
+                      style={styles.shuffleButtonImage}
+                      resizeMode="contain"
+                    />
+                  </Pressable>
+                  <ThemedButton
+                    label="Journal Entries"
+                    onPress={() => setIsJournalEntriesOpen(true)}
+                    variant="secondary"
+                    style={styles.journalEntriesButton}
+                    labelStyle={styles.journalEntriesLabel}
+                  />
+                </>
+              ) : null}
+            </View>
+
+            <Modal transparent visible={isHistoryOpen} animationType="fade">
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalCard, styles.journalCard]}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Your History</Text>
                     <ThemedButton
-                      label="Back"
-                      onPress={() => setSelectedHistoryId(null)}
+                      label="Close"
+                      onPress={() => {
+                        setSelectedHistoryId(null);
+                        setIsHistoryOpen(false);
+                      }}
                       variant="ghost"
                       style={styles.modalCloseButton}
                     />
                   </View>
+                  {formattedHistory.length === 0 ? (
+                    <Text style={styles.modalEmpty}>No cards drawn yet.</Text>
+                  ) : (
+                    <FlatList
+                      data={formattedHistory}
+                      renderItem={renderHistoryItem}
+                      keyExtractor={(item) => `${item.id}-${item.drawnAt}`}
+                      numColumns={3}
+                      columnWrapperStyle={styles.historyRow}
+                      contentContainerStyle={styles.historyGrid}
+                      showsVerticalScrollIndicator={false}
+                      style={styles.modalList}
+                    />
+                  )}
+                  <ThemedButton
+                    label="Clear History"
+                    onPress={confirmClearHistory}
+                    variant="ghost"
+                    style={styles.clearButton}
+                  />
                 </View>
-              </Modal>
+              </View>
+            </Modal>
 
+            <Modal
+              transparent
+              visible={isJournalEntriesOpen}
+              animationType="fade"
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalCard}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Journal Entries</Text>
+                    <ThemedButton
+                      label="Close"
+                      onPress={() => setIsJournalEntriesOpen(false)}
+                      variant="ghost"
+                      style={styles.modalCloseButton}
+                    />
+                  </View>
+                  {journalEntryList.length === 0 ? (
+                    <Text style={styles.modalEmpty}>
+                      No journal entries yet.
+                    </Text>
+                  ) : (
+                    <FlatList
+                      data={journalEntryList}
+                      renderItem={renderJournalEntry}
+                      keyExtractor={(item) => item.id}
+                      showsVerticalScrollIndicator={false}
+                      style={styles.modalList}
+                      contentContainerStyle={styles.journalList}
+                    />
+                  )}
+                </View>
+              </View>
+            </Modal>
+
+            <Modal
+              transparent
+              visible={selectedJournalId !== null}
+              animationType="fade"
+            >
+              <View style={styles.journalOverlay}>
+                <View style={[styles.modalCard, styles.journalCard]}>
+                  {selectedJournalId ? (
+                    <ScrollView contentContainerStyle={styles.detailContent}>
+                      <Text style={styles.journalDetailTitle}>
+                        {selectedJournalCard?.title ?? "Card"}
+                      </Text>
+                      <View style={styles.journalFlipWrap}>
+                        <CardFlip
+                          isFront={isJournalCardFront}
+                          onBeforeFlip={() =>
+                            setIsJournalCardFront((prev) => !prev)
+                          }
+                          idle={false}
+                          front={
+                            selectedJournalCard?.image ? (
+                              <Image
+                                source={selectedJournalCard.image}
+                                style={styles.cardImage}
+                              />
+                            ) : (
+                              <View style={styles.thumbnailFallback} />
+                            )
+                          }
+                          back={
+                            <ImageBackground
+                              source={
+                                selectedJournalCard?.detailImage ??
+                                selectedJournalCard?.image ??
+                                cardBackImage
+                              }
+                              style={styles.journalDetailBack}
+                              imageStyle={styles.cardImage}
+                            >
+                              <View style={styles.journalDetailBackOverlay}>
+                                <Text style={styles.journalDetailBackTitle}>
+                                  {selectedJournalCard?.title ?? "Card"}
+                                </Text>
+                                <ScrollView
+                                  contentContainerStyle={
+                                    styles.journalDetailBackScroll
+                                  }
+                                  showsVerticalScrollIndicator={false}
+                                >
+                                  <Text style={styles.journalDetailBackText}>
+                                    {journalDetailText}
+                                  </Text>
+                                </ScrollView>
+                              </View>
+                            </ImageBackground>
+                          }
+                          style={styles.journalFlipCard}
+                        />
+                      </View>
+                      <View style={styles.journalReflectionWrap}>
+                        <Text style={styles.journalReflectionTitle}>
+                          Your Reflection
+                        </Text>
+                        <ScrollView
+                          contentContainerStyle={styles.journalReflectionScroll}
+                          style={styles.journalReflectionScrollArea}
+                          showsVerticalScrollIndicator={false}
+                        >
+                          <Text style={styles.journalEntryDetailBody}>
+                            {journalEntries[selectedJournalId] ?? ""}
+                          </Text>
+                        </ScrollView>
+                      </View>
+                    </ScrollView>
+                  ) : null}
+                  <ThemedButton
+                    label="Close"
+                    onPress={() => {
+                      setSelectedJournalId(null);
+                      setIsJournalEntriesOpen(true);
+                    }}
+                    variant="secondary"
+                    style={styles.journalCloseButton}
+                    labelStyle={styles.journalCloseLabel}
+                  />
+                </View>
+              </View>
+            </Modal>
+
+            <Modal
+              transparent
+              visible={selectedHistoryId !== null}
+              animationType="fade"
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalCard}>
+                  {selectedCard && selectedEntry ? (
+                    <ScrollView contentContainerStyle={styles.detailContent}>
+                      <Text style={styles.modalTitle}>
+                        {selectedCard.title}
+                      </Text>
+                      <Text style={styles.modalSubtitle}>
+                        {formatHistoryDate(selectedEntry.drawnAt)}
+                      </Text>
+                      <View style={styles.detailImageWrap}>
+                        <Image
+                          source={selectedCard.image}
+                          style={styles.detailImage}
+                        />
+                      </View>
+                    </ScrollView>
+                  ) : (
+                    <Text style={styles.modalEmpty}>
+                      Card image not available.
+                    </Text>
+                  )}
+                  <ThemedButton
+                    label="Back"
+                    onPress={() => setSelectedHistoryId(null)}
+                    variant="ghost"
+                    style={styles.modalCloseButton}
+                  />
+                </View>
+              </View>
+            </Modal>
+
+            <Modal transparent visible={isJournalOpen} animationType="fade">
+              <View style={styles.modalOverlay}>
+                <View style={[styles.modalCard, styles.journalCard]}>
+                  <Text style={styles.journalTitle}>Journal</Text>
+                  <Text style={[styles.modalSubtitle, styles.journalSubtitle]}>
+                    {currentCard?.title ?? "Card"}
+                  </Text>
+                  <TextInput
+                    value={journalDraft}
+                    onChangeText={setJournalDraft}
+                    placeholder="Write your thoughts..."
+                    placeholderTextColor="rgba(17, 16, 15, 0.45)"
+                    multiline
+                    textAlignVertical="top"
+                    style={styles.journalInput}
+                  />
+                  <View style={styles.journalActions}>
+                    <ThemedButton
+                      label="Save and Close"
+                      onPress={saveJournal}
+                      variant="secondary"
+                      style={styles.cardActionButton}
+                      labelStyle={styles.cardActionLabel}
+                    />
+                  </View>
+                </View>
+              </View>
+            </Modal>
           </View>
         </View>
       </ScrollView>
@@ -1428,6 +1822,43 @@ const styles = StyleSheet.create({
   cardWrapper: {
     position: "relative",
     alignItems: "center",
+  },
+  cardActions: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  cardActionButton: {
+    flex: 1,
+    minHeight: 44,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: 999,
+    backgroundColor: "#f2c8a7",
+    borderColor: "#d4a47d",
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardActionLabel: {
+    color: "#11110f",
+    letterSpacing: 0.3,
+    fontSize: 18,
+  },
+  readMoreHint: {
+    marginTop: spacing.sm + 5,
+    fontSize: Math.round(typography.subtitle * 3),
+    fontFamily: appFontFamily,
+    color: "#b57a6b",
+    textAlign: "center",
+    letterSpacing: 0.4,
+    textShadowColor: "rgba(0,0,0,0.99)",
+    textShadowOffset: { width: 0, height: 6 },
+    textShadowRadius: 12,
+    fontWeight: "800",
   },
   cardArea: {
     marginBottom: 0,
@@ -1563,9 +1994,26 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.98 }],
     opacity: 0.92,
   },
+  journalEntriesButton: {
+    alignSelf: "center",
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.xl,
+  },
+  journalEntriesLabel: {
+    fontSize: 15,
+    letterSpacing: 0.3,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(18, 16, 36, 0.72)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  journalOverlay: {
+    flex: 1,
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.lg,
@@ -1580,6 +2028,10 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
     ...shadow.soft,
   },
+  journalCard: {
+    backgroundColor: "#C08B8A",
+    borderColor: "rgba(66, 34, 36, 0.35)",
+  },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1592,14 +2044,146 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: appFontFamily,
   },
+  journalDetailTitle: {
+    color: "#2A1517",
+    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: appFontFamily,
+  },
+  journalTitle: {
+    color: "#2A1517",
+    fontWeight: "700",
+    fontSize: 20,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+    marginBottom: spacing.xs,
+  },
   modalSubtitle: {
     color: colors.textSoft,
     textAlign: "center",
     marginBottom: spacing.md,
     fontFamily: appFontFamily,
   },
+  journalSubtitle: {
+    color: "rgba(42, 21, 23, 0.75)",
+    fontSize: 42,
+    fontWeight: "700",
+  },
   modalList: {
     maxHeight: 320,
+  },
+  journalList: {
+    paddingBottom: spacing.sm,
+  },
+  journalEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surfaceAlt,
+    marginBottom: spacing.sm,
+  },
+  journalEntryThumb: {
+    width: 52,
+    height: 72,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+  },
+  journalEntryThumbImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  journalEntryContent: {
+    flex: 1,
+  },
+  journalEntryTitle: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 16,
+    marginBottom: spacing.xs,
+    fontFamily: appFontFamily,
+  },
+  journalEntryBody: {
+    color: colors.textSoft,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: appFontFamily,
+  },
+  journalFlipWrap: {
+    width: "100%",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  journalFlipCard: {
+    width: 260,
+    height: 390,
+  },
+  journalDetailBack: {
+    flex: 1,
+  },
+  journalDetailBackOverlay: {
+    flex: 1,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "flex-start",
+    backgroundColor: "transparent",
+  },
+  journalDetailBackTitle: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: spacing.sm,
+    fontFamily: appFontFamily,
+  },
+  journalDetailBackScroll: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    maxHeight: 220,
+  },
+  journalDetailBackText: {
+    color: "#000",
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+  },
+  journalEntryDetailBody: {
+    color: colors.textSoft,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+  },
+  journalReflectionWrap: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  journalReflectionScrollArea: {
+    maxHeight: 160,
+    width: "100%",
+  },
+  journalReflectionScroll: {
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  journalReflectionTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: spacing.xs,
+    fontFamily: appFontFamily,
+    textAlign: "center",
   },
   historyGrid: {
     paddingBottom: spacing.sm,
@@ -1652,6 +2236,34 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
+  },
+  journalCloseButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignSelf: "center",
+    backgroundColor: "#C08B8A",
+    borderColor: "rgba(66, 34, 36, 0.35)",
+  },
+  journalCloseLabel: {
+    color: "#2A1517",
+  },
+  journalInput: {
+    minHeight: 140,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: spacing.sm,
+    color: "rgba(42, 21, 23, 0.75)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    fontFamily: appFontFamily,
+    fontSize: 16,
+    textAlign: "center",
+  },
+  journalActions: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    gap: spacing.sm,
+    justifyContent: "center",
   },
   clearButton: {
     marginTop: spacing.sm,

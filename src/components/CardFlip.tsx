@@ -19,9 +19,10 @@ type CardFlipProps = {
   onBeforeFlip?: () => void;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
+  idle?: boolean;
 };
 
-const enableIdleBreath = true;
+const enableIdleBreathDefault = true;
 
 const runParallel = (animations: Animated.CompositeAnimation[]) =>
   new Promise<void>((resolve) => {
@@ -40,6 +41,7 @@ export default function CardFlip({
   onBeforeFlip,
   style,
   disabled = false,
+  idle = enableIdleBreathDefault,
 }: CardFlipProps) {
   const flip = useRef(new Animated.Value(0)).current;
   const liftScale = useRef(new Animated.Value(1)).current;
@@ -66,7 +68,7 @@ export default function CardFlip({
   }, [flip, isFront]);
 
   useEffect(() => {
-    if (!enableIdleBreath || isFront || isRevealing.current) {
+    if (!idle || isFront || isRevealing.current) {
       idleLoop.current?.stop();
       idleScale.setValue(1);
       idleTranslate.setValue(0);
@@ -181,7 +183,7 @@ export default function CardFlip({
   );
 
   const startIdleIfNeeded = () => {
-    if (!enableIdleBreath || isFrontRef.current || isRevealing.current) {
+    if (!idle || isFrontRef.current || isRevealing.current) {
       return;
     }
     idleLoop.current?.stop();

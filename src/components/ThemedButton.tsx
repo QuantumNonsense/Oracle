@@ -7,6 +7,7 @@ import {
   View,
   Platform,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from "react-native";
 import { colors, radii, spacing } from "../theme";
@@ -19,6 +20,7 @@ type ThemedButtonProps = {
   variant?: Variant;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
 };
 
 const buttonFontFamily = Platform.select({
@@ -33,6 +35,7 @@ export default function ThemedButton({
   variant = "primary",
   disabled,
   style,
+  labelStyle: labelStyleOverride,
 }: ThemedButtonProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const translateY = useRef(new Animated.Value(0)).current;
@@ -117,7 +120,7 @@ export default function ThemedButton({
           ]}
         >
           <View pointerEvents="none" style={styles.highlight} />
-          <Text style={labelStyle}>{label}</Text>
+          <Text style={[labelStyle, labelStyleOverride]}>{label}</Text>
         </Animated.View>
       )}
     </Pressable>
