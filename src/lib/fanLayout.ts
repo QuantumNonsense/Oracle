@@ -13,15 +13,20 @@ type FanSlotOptions = {
 export const getFanSlots = ({
   cardWidth,
   baseY,
-  count = 8,
+  count = 6,
 }: FanSlotOptions): FanSlot[] => {
+  const center = (count + 1) / 2;
+  const rotationStart = 12;
+  const rotationEnd = -12;
+  const rotationStep = count > 1 ? (rotationEnd - rotationStart) / (count - 1) : 0;
+
   return Array.from({ length: count }).map((_, index) => {
     const virtualIndex = index + 1;
-    const offsetFromCenter = virtualIndex - 4.5;
+    const offsetFromCenter = virtualIndex - center;
     return {
       x: offsetFromCenter * cardWidth * 0.18,
       y: baseY + -Math.abs(offsetFromCenter) * 6,
-      rot: 12 - (24 / 9) * virtualIndex,
+      rot: rotationStart + rotationStep * index,
     };
   });
 };

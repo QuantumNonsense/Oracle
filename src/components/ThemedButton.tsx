@@ -22,9 +22,9 @@ type ThemedButtonProps = {
 };
 
 const buttonFontFamily = Platform.select({
-  ios: "Palatino",
-  android: "serif",
-  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
+  ios: "TudorRose",
+  android: "TudorRose",
+  default: "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
 });
 
 export default function ThemedButton({

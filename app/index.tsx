@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useFonts } from "expo-font";
 import {
   Alert,
   Animated,
@@ -24,6 +25,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
@@ -103,16 +105,13 @@ const storage = {
 
 const cardsById = new Map(cards.map((card) => [card.id, card]));
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const detailFontFamily = Platform.select({
-  ios: "Palatino",
-  android: "serif",
-  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
+const appFontFamily = Platform.select({
+  ios: "TudorRose",
+  android: "TudorRose",
+  default: "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
 });
-const detailFontFamilyBold = Platform.select({
-  ios: "Palatino-Bold",
-  android: "serif",
-  default: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
-});
+const detailFontFamily = appFontFamily;
+const detailFontFamilyBold = appFontFamily;
 
 const formatHistoryDate = (value: string) => {
   try {
@@ -129,8 +128,13 @@ const formatHistoryDate = (value: string) => {
 };
 
 export default function Index() {
+  const [fontsLoaded] = useFonts({
+    TudorRose: require("../assets/TudorRose.otf"),
+  });
   const bg = require("../assets/backgrounds/mushroom-field.png");
+  const shuffleImage = require("../assets/Shuffle.png");
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [deckState, setDeckState] = useState<DeckState>({
     cards: drawableCards,
     order: [],
@@ -164,6 +168,7 @@ export default function Index() {
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const tapHintAnim = useRef(new Animated.Value(0)).current;
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -680,23 +685,6 @@ export default function Index() {
     scheduleFlipToFront();
   }, [backNode, currentCard, frontNode]);
 
-  const handleSelectFromFan = useCallback(
-    (slotIndex: number) => {
-      if (isConfirmOpen || isShuffling) {
-        return;
-      }
-      setSelectedSlot(slotIndex);
-      setIsConfirmOpen(true);
-      Animated.timing(selectionAnim, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    },
-    [isConfirmOpen, isShuffling, selectionAnim],
-  );
-
   const handleConfirmSelection = useCallback(
     (confirmed: boolean) => {
       if (confirmed) {
@@ -717,6 +705,33 @@ export default function Index() {
       });
     },
     [drawNextCard, selectionAnim],
+  );
+
+  const handleSelectFromFan = useCallback(
+    (slotIndex: number) => {
+      if (isShuffling) {
+        return;
+      }
+      if (isConfirmOpen && selectedSlot === slotIndex) {
+        handleConfirmSelection(true);
+        return;
+      }
+      setSelectedSlot(slotIndex);
+      setIsConfirmOpen(true);
+      Animated.timing(selectionAnim, {
+        toValue: 1,
+        duration: 350,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    },
+    [
+      handleConfirmSelection,
+      isConfirmOpen,
+      isShuffling,
+      selectionAnim,
+      selectedSlot,
+    ],
   );
 
   const toggleFavorite = useCallback(() => {
@@ -834,6 +849,46 @@ export default function Index() {
   const bannerToFanGapOffset = useMemo(() => -17, []);
 
   useEffect(() => {
+    tapHintAnim.stopAnimation();
+    tapHintAnim.setValue(0);
+    const anim = Animated.loop(
+      Animated.sequence(
+        isConfirmOpen
+          ? [
+              Animated.timing(tapHintAnim, {
+                toValue: 1,
+                duration: 260,
+                easing: Easing.out(Easing.back(1.4)),
+                useNativeDriver: true,
+              }),
+              Animated.timing(tapHintAnim, {
+                toValue: 0,
+                duration: 420,
+                easing: Easing.inOut(Easing.sin),
+                useNativeDriver: true,
+              }),
+            ]
+          : [
+              Animated.timing(tapHintAnim, {
+                toValue: 1,
+                duration: 900,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.timing(tapHintAnim, {
+                toValue: 0,
+                duration: 900,
+                easing: Easing.in(Easing.cubic),
+                useNativeDriver: true,
+              }),
+            ],
+      ),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [isConfirmOpen, tapHintAnim]);
+
+  useEffect(() => {
     if (currentCard) {
       return;
     }
@@ -892,46 +947,131 @@ export default function Index() {
     [setSelectedHistoryId],
   );
 
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
-    <ImageBackground
-      source={bg}
-      style={styles.bg}
-      imageStyle={styles.bgImg}
-      resizeMode="cover"
-    >
-      <View pointerEvents="none" style={styles.bgTint} />
-      <View style={styles.root}>
-        <ScrollView
-          style={styles.screen}
-          contentInsetAdjustmentBehavior="never"
-          automaticallyAdjustContentInsets={false}
-          scrollIndicatorInsets={{ top: 0, left: 0, right: 0, bottom: 0 }}
-          contentContainerStyle={styles.container}
+    <View style={styles.root}>
+      <ImageBackground
+        source={bg}
+        style={[
+          styles.bg,
+          {
+            top: -insets.top,
+            bottom: -insets.bottom,
+            left: -insets.left,
+            right: -insets.right,
+          },
+        ]}
+        imageStyle={styles.bgImg}
+        resizeMode="cover"
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.bgTint,
+          {
+            top: -insets.top,
+            bottom: -insets.bottom,
+            left: -insets.left,
+            right: -insets.right,
+          },
+        ]}
+      />
+      <ScrollView
+        style={styles.screen}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        scrollIndicatorInsets={{ top: 0, left: 0, right: 0, bottom: 0 }}
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingTop: spacing.lg + insets.top,
+            paddingBottom: spacing.lg + insets.bottom,
+          },
+        ]}
+      >
+        <View
+          style={styles.centerWrap}
+          onLayout={(event) => {
+            const { width } = event.nativeEvent.layout;
+            if (!width) {
+              return;
+            }
+            if (lastLayoutWidthRef.current !== width) {
+              lastLayoutWidthRef.current = width;
+              setLayoutWidth(width);
+            }
+          }}
         >
-          <View
-            style={styles.centerWrap}
-            onLayout={(event) => {
-              const { width } = event.nativeEvent.layout;
-              if (!width) {
-                return;
-              }
-              if (lastLayoutWidthRef.current !== width) {
-                lastLayoutWidthRef.current = width;
-                setLayoutWidth(width);
-              }
-            }}
-          >
-            <View style={styles.column}>
-              <Image
-                source={require("../assets/banner.png")}
-                style={styles.banner}
-                resizeMode="contain"
-                onLayout={(event) => {
-                  const { y, height } = event.nativeEvent.layout;
-                  setBannerLayout({ y, height });
-                }}
-              />
-              {currentCard ? (
+          <View style={styles.column}>
+            <Image
+              source={require("../assets/banner.png")}
+              style={styles.banner}
+              resizeMode="contain"
+              onLayout={(event) => {
+                const { y, height } = event.nativeEvent.layout;
+                setBannerLayout({ y, height });
+              }}
+            />
+            {!currentCard ? (
+              <Animated.Text
+                style={[
+                  styles.tapHint,
+                  {
+                    opacity: tapHintAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.55, 1],
+                    }),
+                    transform: isConfirmOpen
+                      ? [
+                          {
+                            translateY: tapHintAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, -10],
+                            }),
+                          },
+                          {
+                            translateX: tapHintAnim.interpolate({
+                              inputRange: [0, 0.5, 1],
+                              outputRange: [0, 4, 0],
+                            }),
+                          },
+                          {
+                            rotate: tapHintAnim.interpolate({
+                              inputRange: [0, 0.5, 1],
+                              outputRange: ["0deg", "-4deg", "0deg"],
+                            }),
+                          },
+                          {
+                            scale: tapHintAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 1.08],
+                            }),
+                          },
+                        ]
+                      : [
+                          {
+                            translateY: tapHintAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, -6],
+                            }),
+                          },
+                          {
+                            scale: tapHintAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [1, 1.04],
+                            }),
+                          },
+                        ],
+                  },
+                ]}
+              >
+                {isConfirmOpen ? "Tap again to confirm" : "Tap a card"}
+              </Animated.Text>
+            ) : null}
+            {currentCard ? (
                 <View style={[styles.cardWrapper, { width: cardWidth }]}>
                   <CardFlip
                     key={`${currentCard.id}:${isDetailMode ? "detail" : "front"}:${flipPair?.front ? "hasFront" : "noFront"}`}
@@ -1091,6 +1231,7 @@ export default function Index() {
                             source={cardBackImage}
                             style={styles.fanCardImage}
                           />
+                          {isSelected && isConfirmOpen ? null : null}
                         </AnimatedPressable>
                       );
                     })}
@@ -1110,18 +1251,22 @@ export default function Index() {
                   { marginTop: currentCard ? 0 : 40 },
                 ]}
               >
-                <ThemedButton
-                  label="Shuffle"
+                <Pressable
                   onPress={handleShufflePress}
-                  variant="secondary"
                   disabled={isShuffling}
-                />
-                <ThemedButton
-                  label="Your History"
-                  onPress={() => setIsHistoryOpen(true)}
-                  variant="secondary"
-                  style={styles.historyButton}
-                />
+                  accessibilityRole="button"
+                  accessibilityLabel="Shuffle"
+                  style={({ pressed }) => [
+                    styles.shuffleButton,
+                    pressed && !isShuffling && styles.shuffleButtonPressed,
+                  ]}
+                >
+                  <Image
+                    source={shuffleImage}
+                    style={styles.shuffleButtonImage}
+                    resizeMode="contain"
+                  />
+                </Pressable>
               </View>
 
               <Modal transparent visible={isHistoryOpen} animationType="fade">
@@ -1200,42 +1345,16 @@ export default function Index() {
                 </View>
               </Modal>
 
-              <Modal transparent visible={isConfirmOpen} animationType="fade">
-                <View style={styles.confirmOverlay}>
-                  <View style={[styles.modalCard, styles.confirmCard]}>
-                    <Text style={[styles.modalTitle, styles.confirmTitle]}>
-                      Confirm your pick
-                    </Text>
-                    <Text
-                      style={[styles.modalSubtitle, styles.confirmSubtitle]}
-                    >
-                      Are you sure this is the card you want?
-                    </Text>
-                    <View style={styles.confirmActions}>
-                      <ThemedButton
-                        label="Yes"
-                        onPress={() => handleConfirmSelection(true)}
-                      />
-                      <ThemedButton
-                        label="No"
-                        onPress={() => handleConfirmSelection(false)}
-                        variant="secondary"
-                      />
-                    </View>
-                  </View>
-                </View>
-              </Modal>
-            </View>
           </View>
-        </ScrollView>
-      </View>
-    </ImageBackground>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   bg: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   bgImg: {
     width: "100%",
@@ -1272,6 +1391,7 @@ const styles = StyleSheet.create({
     color: colors.accentLavender,
     fontSize: typography.title,
     fontWeight: "800",
+    fontFamily: appFontFamily,
     marginTop: spacing.xs,
     textShadowColor: "rgba(0,0,0,0.9)",
     textShadowOffset: { width: 0, height: 2 },
@@ -1290,6 +1410,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     textAlign: "center",
     fontSize: typography.subtitle,
+    fontFamily: appFontFamily,
+  },
+  tapHint: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    fontSize: Math.round((typography.subtitle + 2) * 1.3),
+    fontFamily: appFontFamily,
+    fontWeight: "800",
+    color: colors.surface,
+    textAlign: "center",
+    letterSpacing: 0.6,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   cardWrapper: {
     position: "relative",
@@ -1343,11 +1477,12 @@ const styles = StyleSheet.create({
     color: "#000",
     fontSize: 12,
     fontWeight: "600",
+    fontFamily: appFontFamily,
   },
   detailTitleText: {
     fontFamily: detailFontFamilyBold,
     color: "#000",
-    fontSize: 22,
+    fontSize: Math.round(22 * 1.3),
     fontStyle: "italic",
     marginBottom: spacing.xs,
     textAlign: "center",
@@ -1355,15 +1490,15 @@ const styles = StyleSheet.create({
   detailBodyText: {
     fontFamily: detailFontFamily,
     color: "#000",
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: Math.round(16 * 1.3),
+    lineHeight: Math.round(23 * 1.3),
     marginBottom: spacing.sm,
     textAlign: "center",
   },
   detailHeadingText: {
     fontFamily: detailFontFamilyBold,
     color: "#000",
-    fontSize: 17,
+    fontSize: Math.round(17 * 1.3),
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
     textAlign: "center",
@@ -1371,8 +1506,8 @@ const styles = StyleSheet.create({
   detailBulletText: {
     fontFamily: detailFontFamily,
     color: "#000",
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: Math.round(16 * 1.3),
+    lineHeight: Math.round(23 * 1.3),
     marginBottom: spacing.xs,
     textAlign: "center",
   },
@@ -1407,33 +1542,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
     padding: spacing.sm,
-    backgroundColor: "rgba(18,16,36,0.35)",
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-  },
-  historyButton: {
-    backgroundColor: colors.accentLavender,
-  },
-  confirmActions: {
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  confirmOverlay: {
-    flex: 1,
     backgroundColor: "transparent",
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: "transparent",
+  },
+  shuffleButton: {
+    alignSelf: "center",
+    width: Math.round(180 * 1.75),
+    height: Math.round(66 * 1.75),
+    marginTop: -50,
     alignItems: "center",
-    padding: spacing.lg,
-    paddingTop: spacing.xl * 1.5,
+    justifyContent: "center",
   },
-  confirmCard: {
-    maxWidth: 420,
+  shuffleButtonImage: {
+    width: "100%",
+    height: "100%",
   },
-  confirmTitle: {
-    textAlign: "center",
-  },
-  confirmSubtitle: {
-    textAlign: "center",
+  shuffleButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.92,
   },
   modalOverlay: {
     flex: 1,
@@ -1462,11 +1590,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
     fontSize: 18,
+    fontFamily: appFontFamily,
   },
   modalSubtitle: {
     color: colors.textSoft,
     textAlign: "center",
     marginBottom: spacing.md,
+    fontFamily: appFontFamily,
   },
   modalList: {
     maxHeight: 320,
@@ -1502,15 +1632,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "600",
     fontSize: 12,
+    fontFamily: appFontFamily,
   },
   historyDate: {
     color: colors.textSoft,
     fontSize: 10,
+    fontFamily: appFontFamily,
   },
   modalEmpty: {
     color: colors.textSoft,
     textAlign: "center",
     paddingVertical: spacing.md,
+    fontFamily: appFontFamily,
   },
   thumbnailFallback: {
     flex: 1,
