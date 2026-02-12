@@ -972,35 +972,20 @@ export default function Index() {
     tapHintAnim.setValue(0);
     const anim = Animated.loop(
       Animated.sequence(
-        isConfirmOpen
-          ? [
-              Animated.timing(tapHintAnim, {
-                toValue: 1,
-                duration: 260,
-                easing: Easing.out(Easing.back(1.4)),
-                useNativeDriver: true,
-              }),
-              Animated.timing(tapHintAnim, {
-                toValue: 0,
-                duration: 420,
-                easing: Easing.inOut(Easing.sin),
-                useNativeDriver: true,
-              }),
-            ]
-          : [
-              Animated.timing(tapHintAnim, {
-                toValue: 1,
-                duration: 900,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver: true,
-              }),
-              Animated.timing(tapHintAnim, {
-                toValue: 0,
-                duration: 900,
-                easing: Easing.in(Easing.cubic),
-                useNativeDriver: true,
-              }),
-            ],
+        [
+          Animated.timing(tapHintAnim, {
+            toValue: 1,
+            duration: isConfirmOpen ? 700 : 900,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(tapHintAnim, {
+            toValue: 0,
+            duration: isConfirmOpen ? 700 : 900,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ],
       ),
     );
     anim.start();
@@ -1082,6 +1067,26 @@ export default function Index() {
       })
       .join("\n\n");
   }, [selectedJournalCard]);
+  const journalPeekText = useMemo(() => {
+    if (!currentCard) {
+      return "No description available.";
+    }
+    const lines = buildDetailLines(currentCard).slice(1);
+    if (lines.length === 0) {
+      return "No description available.";
+    }
+    return lines
+      .map((line) => {
+        if (line.type === "heading") {
+          return line.text;
+        }
+        if (line.type === "bullet") {
+          return `• ${line.text.replace(/^~/, "")}`;
+        }
+        return line.text;
+      })
+      .join("\n\n");
+  }, [currentCard]);
   const renderHistoryItem = useCallback(
     ({ item }: { item: HistoryEntry & { formatted: string } }) => {
       const rowCard = cardsById.get(item.id) ?? null;
@@ -1209,60 +1214,82 @@ export default function Index() {
               }}
             />
             {!currentCard ? (
-              <Animated.Text
-                style={[
-                  styles.tapHint,
-                  {
-                    opacity: tapHintAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.55, 1],
-                    }),
-                    transform: isConfirmOpen
-                      ? [
-                          {
-                            translateY: tapHintAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, -10],
-                            }),
-                          },
-                          {
-                            translateX: tapHintAnim.interpolate({
-                              inputRange: [0, 0.5, 1],
-                              outputRange: [0, 4, 0],
-                            }),
-                          },
-                          {
-                            rotate: tapHintAnim.interpolate({
-                              inputRange: [0, 0.5, 1],
-                              outputRange: ["0deg", "-4deg", "0deg"],
-                            }),
-                          },
-                          {
-                            scale: tapHintAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [1, 1.08],
-                            }),
-                          },
-                        ]
-                      : [
-                          {
-                            translateY: tapHintAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, -6],
-                            }),
-                          },
-                          {
-                            scale: tapHintAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [1, 1.04],
-                            }),
-                          },
-                        ],
-                  },
-                ]}
-              >
-                {isConfirmOpen ? "Tap again to confirm" : "Tap a card"}
-              </Animated.Text>
+              <View style={styles.tapHintWrap}>
+                {isConfirmOpen ? (
+                  <>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.tapHint,
+                        styles.tapHintLayer,
+                        styles.tapHintGlowFar,
+                        {
+                          opacity: tapHintAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.24, 0.72],
+                          }),
+                          transform: [
+                            {
+                              scale: tapHintAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1.01, 1.08],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      Tap again to confirm
+                    </Animated.Text>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.tapHint,
+                        styles.tapHintLayer,
+                        styles.tapHintGlowNear,
+                        {
+                          opacity: tapHintAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.4, 0.95],
+                          }),
+                          transform: [
+                            {
+                              scale: tapHintAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1, 1.04],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      Tap again to confirm
+                    </Animated.Text>
+                  </>
+                ) : null}
+                <Animated.Text
+                  style={[
+                    styles.tapHint,
+                    isConfirmOpen ? styles.tapHintCoreConfirm : null,
+                    {
+                      opacity: tapHintAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: isConfirmOpen ? [0.86, 1] : [0.75, 1],
+                      }),
+                      transform: [
+                        {
+                          scale: tapHintAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: isConfirmOpen ? [1, 1.02] : [1, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  {isConfirmOpen ? "Tap again to confirm" : "Tap a card"}
+                </Animated.Text>
+              </View>
             ) : null}
             {currentCard ? (
               <View style={[styles.cardWrapper, { width: cardWidth }]}>
@@ -1282,27 +1309,78 @@ export default function Index() {
                   ]}
                 />
                 {!isDetailMode ? (
-                  <Animated.Text
-                    style={[
-                      styles.readMoreHint,
-                      {
-                        opacity: readMoreAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.75, 1],
-                        }),
-                        transform: [
-                          {
-                            scale: readMoreAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.98, 1.07],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    Tap to read more
-                  </Animated.Text>
+                  <View style={styles.readMoreHintWrap}>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.readMoreHint,
+                        styles.readMoreHintLayer,
+                        styles.readMoreHintGlowFar,
+                        {
+                          opacity: readMoreAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.24, 0.68],
+                          }),
+                          transform: [
+                            {
+                              scale: readMoreAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [1, 1.11],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      Tap to read more
+                    </Animated.Text>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.readMoreHint,
+                        styles.readMoreHintLayer,
+                        styles.readMoreHintGlowNear,
+                        {
+                          opacity: readMoreAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.36, 0.92],
+                          }),
+                          transform: [
+                            {
+                              scale: readMoreAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.99, 1.08],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      Tap to read more
+                    </Animated.Text>
+                    <Animated.Text
+                      style={[
+                        styles.readMoreHint,
+                        styles.readMoreHintCore,
+                        {
+                          opacity: readMoreAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.78, 1],
+                          }),
+                          transform: [
+                            {
+                              scale: readMoreAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.98, 1.07],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      Tap to read more
+                    </Animated.Text>
+                  </View>
                 ) : null}
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
@@ -1718,6 +1796,17 @@ export default function Index() {
                   <Text style={[styles.modalSubtitle, styles.journalSubtitle]}>
                     {currentCard?.title ?? "Card"}
                   </Text>
+                  <View style={styles.journalPeekPanel}>
+                    <ScrollView
+                      style={styles.journalPeekScrollArea}
+                      contentContainerStyle={styles.journalPeekScroll}
+                      showsVerticalScrollIndicator={false}
+                    >
+                      <Text style={styles.journalPeekText}>
+                        {journalPeekText}
+                      </Text>
+                    </ScrollView>
+                  </View>
                   <TextInput
                     value={journalDraft}
                     onChangeText={setJournalDraft}
@@ -1807,17 +1896,45 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
   },
   tapHint: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
     fontSize: Math.round((typography.subtitle + 2) * 1.3),
     fontFamily: appFontFamily,
     fontWeight: "800",
-    color: colors.surface,
+    color: "#000",
     textAlign: "center",
     letterSpacing: 0.6,
-    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowColor: "rgba(255,255,255,0.85)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  tapHintWrap: {
+    position: "relative",
+    alignSelf: "center",
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  tapHintLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  tapHintGlowFar: {
+    color: "#fff",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 22,
+  },
+  tapHintGlowNear: {
+    color: "#fff",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 11,
+  },
+  tapHintCoreConfirm: {
+    color: "#000",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   cardWrapper: {
     position: "relative",
@@ -1849,16 +1966,44 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   readMoreHint: {
-    marginTop: spacing.sm + 5,
     fontSize: Math.round(typography.subtitle * 3),
     fontFamily: appFontFamily,
-    color: "#b57a6b",
+    color: "#000",
     textAlign: "center",
     letterSpacing: 0.4,
-    textShadowColor: "rgba(0,0,0,0.99)",
-    textShadowOffset: { width: 0, height: 6 },
-    textShadowRadius: 12,
+    textShadowColor: "rgba(255,255,255,0.95)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
     fontWeight: "800",
+  },
+  readMoreHintWrap: {
+    position: "relative",
+    alignSelf: "center",
+    marginTop: spacing.sm + 5,
+  },
+  readMoreHintLayer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  readMoreHintGlowFar: {
+    color: "#fff",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 24,
+  },
+  readMoreHintGlowNear: {
+    color: "#fff",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 13,
+  },
+  readMoreHintCore: {
+    color: "#000",
+    textShadowColor: "rgba(255, 255, 255, 1)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 7,
   },
   cardArea: {
     marginBottom: 0,
@@ -2258,6 +2403,29 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
     fontSize: 16,
     textAlign: "center",
+  },
+  journalPeekPanel: {
+    width: "100%",
+    maxHeight: 180,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: "rgba(66, 34, 36, 0.28)",
+    backgroundColor: "rgba(255, 255, 255, 0.82)",
+    marginBottom: spacing.sm,
+  },
+  journalPeekScrollArea: {
+    width: "100%",
+  },
+  journalPeekScroll: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  journalPeekText: {
+    color: "rgba(42, 21, 23, 0.88)",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "left",
+    fontFamily: appFontFamily,
   },
   journalActions: {
     marginTop: spacing.sm,
