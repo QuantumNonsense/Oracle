@@ -52,6 +52,17 @@ const SHUFFLE_TIMING = {
 } as const;
 const SHUFFLE_SHAKE_STEPS = 6;
 const SHUFFLE_SWIRL_STEPS = 8;
+const SHUFFLE_START_PROGRESS_ON_OPEN = 0.4;
+const SHUFFLE_TOTAL_DURATION =
+  SHUFFLE_TIMING.COLLAPSE_DURATION +
+  SHUFFLE_TIMING.HOLD_BEFORE_SHAKE +
+  SHUFFLE_TIMING.SHAKE_DURATION +
+  SHUFFLE_TIMING.HOLD_AFTER_SHAKE +
+  SHUFFLE_TIMING.SWIRL_DURATION +
+  SHUFFLE_TIMING.SWIRL_RESET_DURATION +
+  SHUFFLE_TIMING.SWIRL_DURATION +
+  SHUFFLE_TIMING.SWIRL_RESET_DURATION +
+  SHUFFLE_TIMING.EXPAND_DURATION;
 const CARD_FLIP_DURATION_MS = 380;
 const DETAIL_TEXT_BLANK_MS = 200;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
@@ -66,6 +77,13 @@ type HistoryEntry = {
   id: string;
   title: string;
   drawnAt: string;
+};
+
+type JournalEntry = {
+  id: string;
+  cardId: string;
+  entry: string;
+  createdAt: string;
 };
 
 type FanSize = {
@@ -130,6 +148,9 @@ const formatHistoryDate = (value: string) => {
   }
 };
 
+const createJournalEntryId = () =>
+  `journal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 const buildDetailLines = (card: Card | null) => {
   if (!card) {
     return [];
@@ -169,6 +190,49 @@ const buildDetailLines = (card: Card | null) => {
   return lines;
 };
 
+const parseStoredJournals = (raw: string): JournalEntry[] => {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter(
+          (item): item is JournalEntry =>
+            Boolean(
+              item &&
+                typeof item === "object" &&
+                typeof (item as JournalEntry).id === "string" &&
+                typeof (item as JournalEntry).cardId === "string" &&
+                typeof (item as JournalEntry).entry === "string" &&
+                typeof (item as JournalEntry).createdAt === "string",
+            ),
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+    }
+
+    if (parsed && typeof parsed === "object") {
+      // Backward compatibility for v1 shape: Record<cardId, entry>.
+      return Object.entries(parsed as Record<string, string>)
+        .filter(([, entry]) => typeof entry === "string" && entry.trim().length)
+        .map(([cardId, entry], index) => ({
+          id: `legacy-${cardId}-${index}`,
+          cardId,
+          entry: entry.trim(),
+          createdAt: new Date(0).toISOString(),
+        }))
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+    }
+  } catch (error) {
+    return [];
+  }
+  return [];
+};
+
 export default function Index() {
   const [fontsLoaded] = useFonts({
     TudorRose: require("../assets/TudorRose.otf"),
@@ -188,15 +252,13 @@ export default function Index() {
   const [isDetailMode, setIsDetailMode] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
-  const [journalEntries, setJournalEntries] = useState<Record<string, string>>(
-    {},
-  );
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
-  const [selectedJournalId, setSelectedJournalId] = useState<string | null>(
-    null,
-  );
+  const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
+    string | null
+  >(null);
   const [isJournalCardFront, setIsJournalCardFront] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
@@ -222,6 +284,7 @@ export default function Index() {
   );
   const tapHintAnim = useRef(new Animated.Value(0)).current;
   const readMoreAnim = useRef(new Animated.Value(0)).current;
+  const hasStartedInitialShuffleRef = useRef(false);
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -250,14 +313,7 @@ export default function Index() {
     );
   }, [currentCard]);
   const journalEntryList = useMemo(
-    () =>
-      Object.entries(journalEntries)
-        .map(([id, entry]) => ({
-          id,
-          entry,
-          title: cardsById.get(id)?.title ?? "Card",
-        }))
-        .sort((a, b) => a.title.localeCompare(b.title)),
+    () => journalEntries,
     [journalEntries],
   );
   const detailLines = useMemo(() => buildDetailLines(currentCard), [currentCard]);
@@ -383,12 +439,7 @@ export default function Index() {
       }
 
       if (storedJournals) {
-        try {
-          const parsed = JSON.parse(storedJournals) as Record<string, string>;
-          setJournalEntries(parsed);
-        } catch (error) {
-          setJournalEntries({});
-        }
+        setJournalEntries(parseStoredJournals(storedJournals));
       }
     };
 
@@ -414,7 +465,7 @@ export default function Index() {
     void storage.setItem(FAVORITES_KEY, JSON.stringify(next));
   }, []);
 
-  const persistJournals = useCallback((next: Record<string, string>) => {
+  const persistJournals = useCallback((next: JournalEntry[]) => {
     void storage.setItem(JOURNAL_KEY, JSON.stringify(next));
   }, []);
 
@@ -422,9 +473,9 @@ export default function Index() {
     if (!currentCard) {
       return;
     }
-    setJournalDraft(journalEntries[currentCard.id] ?? "");
+    setJournalDraft("");
     setIsJournalOpen(true);
-  }, [currentCard, journalEntries]);
+  }, [currentCard]);
 
   const saveJournal = useCallback(() => {
     if (!currentCard) {
@@ -432,16 +483,24 @@ export default function Index() {
       return;
     }
     const trimmed = journalDraft.trim();
+    if (!trimmed) {
+      setIsJournalOpen(false);
+      return;
+    }
     setJournalEntries((prev) => {
-      if (!trimmed) {
-        const { [currentCard.id]: _omit, ...rest } = prev;
-        persistJournals(rest);
-        return rest;
-      }
-      const next = { ...prev, [currentCard.id]: trimmed };
+      const next = [
+        {
+          id: createJournalEntryId(),
+          cardId: currentCard.id,
+          entry: trimmed,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ];
       persistJournals(next);
       return next;
     });
+    setJournalDraft("");
     setIsJournalOpen(false);
   }, [currentCard, journalDraft, persistJournals]);
 
@@ -476,7 +535,7 @@ export default function Index() {
     setFanOffsetY(88);
     setIsJournalOpen(false);
     setIsJournalEntriesOpen(false);
-    setSelectedJournalId(null);
+    setSelectedJournalEntryId(null);
     setJournalDraft("");
     void storage.setItem(HISTORY_KEY, JSON.stringify([]));
     void storage.setItem(FAVORITES_KEY, JSON.stringify({}));
@@ -518,10 +577,10 @@ export default function Index() {
   }, [currentCard]);
 
   useEffect(() => {
-    if (selectedJournalId) {
+    if (selectedJournalEntryId) {
       setIsJournalCardFront(true);
     }
-  }, [selectedJournalId]);
+  }, [selectedJournalEntryId]);
 
   useEffect(() => {
     detailLineAnimRef.current?.stop();
@@ -603,11 +662,78 @@ export default function Index() {
     setIsShuffling(false);
   }, [fanCollapse, shuffleDeck, shuffleShake, shuffleSwirl]);
 
-  const startShuffle = useCallback(() => {
+  const startShuffle = useCallback((initialProgress = 0) => {
     setIsShuffling(true);
-    fanCollapse.setValue(0);
+    const progress = Math.min(Math.max(initialProgress, 0), 1);
+    let elapsed = SHUFFLE_TOTAL_DURATION * progress;
+    const consumeElapsed = (duration: number) => {
+      const consumed = Math.min(elapsed, duration);
+      elapsed -= consumed;
+      return consumed;
+    };
+    const collapseElapsed = consumeElapsed(SHUFFLE_TIMING.COLLAPSE_DURATION);
+    const holdBeforeShakeElapsed = consumeElapsed(
+      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE,
+    );
+    const shakeElapsed = consumeElapsed(SHUFFLE_TIMING.SHAKE_DURATION);
+    const holdAfterShakeElapsed = consumeElapsed(SHUFFLE_TIMING.HOLD_AFTER_SHAKE);
+    const swirlOneElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
+    const swirlResetOneElapsed = consumeElapsed(
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+    );
+    const swirlTwoElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
+    const swirlResetTwoElapsed = consumeElapsed(
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+    );
+    const expandElapsed = consumeElapsed(SHUFFLE_TIMING.EXPAND_DURATION);
+
+    const collapseProgress =
+      SHUFFLE_TIMING.COLLAPSE_DURATION > 0
+        ? collapseElapsed / SHUFFLE_TIMING.COLLAPSE_DURATION
+        : 1;
+    const expandProgress =
+      SHUFFLE_TIMING.EXPAND_DURATION > 0
+        ? expandElapsed / SHUFFLE_TIMING.EXPAND_DURATION
+        : 1;
+
+    if (collapseElapsed < SHUFFLE_TIMING.COLLAPSE_DURATION) {
+      fanCollapse.setValue(collapseProgress);
+    } else if (expandElapsed > 0) {
+      fanCollapse.setValue(1 - expandProgress);
+    } else if (progress >= 1) {
+      fanCollapse.setValue(0);
+    } else {
+      fanCollapse.setValue(1);
+    }
     shuffleShake.setValue(0);
-    shuffleSwirl.setValue(0);
+
+    if (swirlOneElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
+      const swirlProgress =
+        SHUFFLE_TIMING.SWIRL_DURATION > 0
+          ? swirlOneElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+          : 1;
+      shuffleSwirl.setValue(swirlProgress);
+    } else if (swirlResetOneElapsed > 0) {
+      const swirlProgress =
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
+          ? 1 - swirlResetOneElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
+          : 0;
+      shuffleSwirl.setValue(swirlProgress);
+    } else if (swirlTwoElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
+      const swirlProgress =
+        SHUFFLE_TIMING.SWIRL_DURATION > 0
+          ? swirlTwoElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+          : 1;
+      shuffleSwirl.setValue(swirlProgress);
+    } else if (swirlResetTwoElapsed > 0) {
+      const swirlProgress =
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
+          ? 1 - swirlResetTwoElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
+          : 0;
+      shuffleSwirl.setValue(swirlProgress);
+    } else {
+      shuffleSwirl.setValue(0);
+    }
 
     const stepDuration =
       SHUFFLE_TIMING.SHAKE_DURATION / (SHUFFLE_SHAKE_STEPS * 2);
@@ -628,47 +754,91 @@ export default function Index() {
       ],
     );
 
-    const animation = Animated.sequence([
-      Animated.timing(fanCollapse, {
-        toValue: 1,
-        duration: SHUFFLE_TIMING.COLLAPSE_DURATION,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-      }),
-      Animated.delay(SHUFFLE_TIMING.HOLD_BEFORE_SHAKE),
-      Animated.sequence(shakeSteps),
-      Animated.delay(SHUFFLE_TIMING.HOLD_AFTER_SHAKE),
-      Animated.timing(shuffleSwirl, {
-        toValue: 1,
-        duration: SHUFFLE_TIMING.SWIRL_DURATION,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(shuffleSwirl, {
-        toValue: 0,
-        duration: SHUFFLE_TIMING.SWIRL_RESET_DURATION,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-      Animated.timing(shuffleSwirl, {
-        toValue: 1,
-        duration: SHUFFLE_TIMING.SWIRL_DURATION,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(shuffleSwirl, {
-        toValue: 0,
-        duration: SHUFFLE_TIMING.SWIRL_RESET_DURATION,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fanCollapse, {
-        toValue: 0,
-        duration: SHUFFLE_TIMING.EXPAND_DURATION,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-      }),
-    ]);
+    const animationSteps: Animated.CompositeAnimation[] = [];
+    const collapseRemaining =
+      SHUFFLE_TIMING.COLLAPSE_DURATION - collapseElapsed;
+    if (collapseRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(fanCollapse, {
+          toValue: 1,
+          duration: collapseRemaining,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      );
+    }
+    const holdBeforeShakeRemaining =
+      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE - holdBeforeShakeElapsed;
+    if (holdBeforeShakeRemaining > 0) {
+      animationSteps.push(Animated.delay(holdBeforeShakeRemaining));
+    }
+    if (shakeElapsed < SHUFFLE_TIMING.SHAKE_DURATION) {
+      animationSteps.push(Animated.sequence(shakeSteps));
+    }
+    const holdAfterShakeRemaining =
+      SHUFFLE_TIMING.HOLD_AFTER_SHAKE - holdAfterShakeElapsed;
+    if (holdAfterShakeRemaining > 0) {
+      animationSteps.push(Animated.delay(holdAfterShakeRemaining));
+    }
+    const swirlOneRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlOneElapsed;
+    if (swirlOneRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(shuffleSwirl, {
+          toValue: 1,
+          duration: swirlOneRemaining,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      );
+    }
+    const swirlResetOneRemaining =
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetOneElapsed;
+    if (swirlResetOneRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(shuffleSwirl, {
+          toValue: 0,
+          duration: swirlResetOneRemaining,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      );
+    }
+    const swirlTwoRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlTwoElapsed;
+    if (swirlTwoRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(shuffleSwirl, {
+          toValue: 1,
+          duration: swirlTwoRemaining,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      );
+    }
+    const swirlResetTwoRemaining =
+      SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetTwoElapsed;
+    if (swirlResetTwoRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(shuffleSwirl, {
+          toValue: 0,
+          duration: swirlResetTwoRemaining,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      );
+    }
+    const expandRemaining = SHUFFLE_TIMING.EXPAND_DURATION - expandElapsed;
+    if (expandRemaining > 0) {
+      animationSteps.push(
+        Animated.timing(fanCollapse, {
+          toValue: 0,
+          duration: expandRemaining,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      );
+    }
+
+    const animation = Animated.sequence(animationSteps);
     shuffleAnimRef.current = animation;
     animation.start(({ finished }) => {
       if (finished) {
@@ -676,6 +846,14 @@ export default function Index() {
       }
     });
   }, [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl]);
+
+  useEffect(() => {
+    if (hasStartedInitialShuffleRef.current) {
+      return;
+    }
+    hasStartedInitialShuffleRef.current = true;
+    startShuffle(SHUFFLE_START_PROGRESS_ON_OPEN);
+  }, [startShuffle]);
 
   const handleShufflePress = useCallback(() => {
     if (isShuffling) {
@@ -1044,8 +1222,12 @@ export default function Index() {
   const selectedEntry = selectedHistoryId
     ? (history.find((entry) => entry.id === selectedHistoryId) ?? null)
     : null;
-  const selectedJournalCard = selectedJournalId
-    ? (cardsById.get(selectedJournalId) ?? null)
+  const selectedJournalEntry = selectedJournalEntryId
+    ? (journalEntries.find((entry) => entry.id === selectedJournalEntryId) ??
+      null)
+    : null;
+  const selectedJournalCard = selectedJournalEntry
+    ? (cardsById.get(selectedJournalEntry.cardId) ?? null)
     : null;
   const journalDetailText = useMemo(() => {
     if (!selectedJournalCard) {
@@ -1115,16 +1297,17 @@ export default function Index() {
     [setSelectedHistoryId],
   );
   const renderJournalEntry = useCallback(
-    ({ item }: { item: { id: string; title: string; entry: string } }) => {
-      const card = cardsById.get(item.id) ?? null;
+    ({ item }: { item: JournalEntry }) => {
+      const card = cardsById.get(item.cardId) ?? null;
+      const title = card?.title ?? "Card";
       return (
         <Pressable
           style={styles.journalEntry}
           onPress={() => {
-            setSelectedJournalId(item.id);
+            setSelectedJournalEntryId(item.id);
             setIsJournalEntriesOpen(false);
           }}
-          accessibilityLabel={`Open journal entry for ${item.title}`}
+          accessibilityLabel={`Open journal entry for ${title}`}
         >
           <View style={styles.journalEntryThumb}>
             {card ? (
@@ -1134,7 +1317,10 @@ export default function Index() {
             )}
           </View>
           <View style={styles.journalEntryContent}>
-            <Text style={styles.journalEntryTitle}>{item.title}</Text>
+            <Text style={styles.journalEntryTitle}>{title}</Text>
+            <Text style={styles.journalEntryDate}>
+              {formatHistoryDate(item.createdAt)}
+            </Text>
             <Text style={styles.journalEntryBody} numberOfLines={2}>
               {item.entry}
             </Text>
@@ -1665,15 +1851,18 @@ export default function Index() {
 
             <Modal
               transparent
-              visible={selectedJournalId !== null}
+              visible={selectedJournalEntryId !== null}
               animationType="fade"
             >
               <View style={styles.journalOverlay}>
                 <View style={[styles.modalCard, styles.journalCard]}>
-                  {selectedJournalId ? (
+                  {selectedJournalEntry ? (
                     <ScrollView contentContainerStyle={styles.detailContent}>
                       <Text style={styles.journalDetailTitle}>
                         {selectedJournalCard?.title ?? "Card"}
+                      </Text>
+                      <Text style={styles.modalSubtitle}>
+                        {formatHistoryDate(selectedJournalEntry.createdAt)}
                       </Text>
                       <View style={styles.journalFlipWrap}>
                         <CardFlip
@@ -1732,7 +1921,7 @@ export default function Index() {
                           showsVerticalScrollIndicator={false}
                         >
                           <Text style={styles.journalEntryDetailBody}>
-                            {journalEntries[selectedJournalId] ?? ""}
+                            {selectedJournalEntry.entry}
                           </Text>
                         </ScrollView>
                       </View>
@@ -1741,7 +1930,7 @@ export default function Index() {
                   <ThemedButton
                     label="Close"
                     onPress={() => {
-                      setSelectedJournalId(null);
+                      setSelectedJournalEntryId(null);
                       setIsJournalEntriesOpen(true);
                     }}
                     variant="secondary"
@@ -1792,7 +1981,6 @@ export default function Index() {
             <Modal transparent visible={isJournalOpen} animationType="fade">
               <View style={styles.modalOverlay}>
                 <View style={[styles.modalCard, styles.journalCard]}>
-                  <Text style={styles.journalTitle}>Journal</Text>
                   <Text style={[styles.modalSubtitle, styles.journalSubtitle]}>
                     {currentCard?.title ?? "Card"}
                   </Text>
@@ -2195,14 +2383,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: appFontFamily,
   },
-  journalTitle: {
-    color: "#2A1517",
-    fontWeight: "700",
-    fontSize: 20,
-    fontFamily: appFontFamily,
-    textAlign: "center",
-    marginBottom: spacing.xs,
-  },
   modalSubtitle: {
     color: colors.textSoft,
     textAlign: "center",
@@ -2252,6 +2432,12 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
     fontSize: 16,
+    marginBottom: 2,
+    fontFamily: appFontFamily,
+  },
+  journalEntryDate: {
+    color: "rgba(17, 16, 15, 0.58)",
+    fontSize: 12,
     marginBottom: spacing.xs,
     fontFamily: appFontFamily,
   },
