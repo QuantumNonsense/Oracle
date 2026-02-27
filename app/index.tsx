@@ -265,6 +265,7 @@ export default function Index() {
     null,
   );
   const [isShuffling, setIsShuffling] = useState(false);
+  const [shuffleStartRequest, setShuffleStartRequest] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -284,12 +285,16 @@ export default function Index() {
   );
   const tapHintAnim = useRef(new Animated.Value(0)).current;
   const readMoreAnim = useRef(new Animated.Value(0)).current;
-  const hasStartedInitialShuffleRef = useRef(false);
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const cardInteractionLockTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
+  const [isCardInteractionLocked, setIsCardInteractionLocked] = useState(false);
   const backNode = useMemo(
     () => <Image source={cardBackImage} style={styles.cardImage} />,
     [],
@@ -446,6 +451,10 @@ export default function Index() {
     void loadState();
   }, []);
 
+  useEffect(() => {
+    setShuffleStartRequest((prev) => prev + 1);
+  }, []);
+
   const recordHistory = useCallback((card: Card) => {
     setHistory((prev) => {
       const next = [
@@ -515,6 +524,12 @@ export default function Index() {
       clearTimeout(detailContentSwapTimeoutRef.current);
       detailContentSwapTimeoutRef.current = null;
     }
+    if (cardInteractionLockTimeoutRef.current) {
+      clearTimeout(cardInteractionLockTimeoutRef.current);
+      cardInteractionLockTimeoutRef.current = null;
+    }
+    isCardTransitioningRef.current = false;
+    setIsCardInteractionLocked(false);
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
     selectionAnim.setValue(0);
@@ -537,6 +552,7 @@ export default function Index() {
     setIsJournalEntriesOpen(false);
     setSelectedJournalEntryId(null);
     setJournalDraft("");
+    setShuffleStartRequest((prev) => prev + 1);
     void storage.setItem(HISTORY_KEY, JSON.stringify([]));
     void storage.setItem(FAVORITES_KEY, JSON.stringify({}));
     void storage.setItem(LAST_CARD_KEY, "");
@@ -625,10 +641,42 @@ export default function Index() {
         clearTimeout(detailContentSwapTimeoutRef.current);
         detailContentSwapTimeoutRef.current = null;
       }
+      if (cardInteractionLockTimeoutRef.current) {
+        clearTimeout(cardInteractionLockTimeoutRef.current);
+        cardInteractionLockTimeoutRef.current = null;
+      }
+      isCardTransitioningRef.current = false;
     };
   }, []);
 
+  const clearCardInteractionLock = useCallback(() => {
+    if (cardInteractionLockTimeoutRef.current) {
+      clearTimeout(cardInteractionLockTimeoutRef.current);
+      cardInteractionLockTimeoutRef.current = null;
+    }
+    isCardTransitioningRef.current = false;
+    setIsCardInteractionLocked(false);
+  }, []);
+
+  const lockCardInteraction = useCallback(
+    (durationMs: number) => {
+      if (cardInteractionLockTimeoutRef.current) {
+        clearTimeout(cardInteractionLockTimeoutRef.current);
+        cardInteractionLockTimeoutRef.current = null;
+      }
+      isCardTransitioningRef.current = true;
+      setIsCardInteractionLocked(true);
+      cardInteractionLockTimeoutRef.current = setTimeout(() => {
+        isCardTransitioningRef.current = false;
+        setIsCardInteractionLocked(false);
+        cardInteractionLockTimeoutRef.current = null;
+      }, durationMs);
+    },
+    [],
+  );
+
   useEffect(() => {
+    clearCardInteractionLock();
     if (!currentCard) {
       setFlipPair(null);
       setIsFront(false);
@@ -640,7 +688,7 @@ export default function Index() {
     }
     setIsFront(false);
     setIsDetailMode(false);
-  }, [backNode, currentCard, frontNode]);
+  }, [backNode, clearCardInteractionLock, currentCard, frontNode]);
 
   const shuffleDeck = useCallback(() => {
     setDeckState((prev) => ({
@@ -848,12 +896,11 @@ export default function Index() {
   }, [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl]);
 
   useEffect(() => {
-    if (hasStartedInitialShuffleRef.current) {
+    if (shuffleStartRequest < 1) {
       return;
     }
-    hasStartedInitialShuffleRef.current = true;
     startShuffle(SHUFFLE_START_PROGRESS_ON_OPEN);
-  }, [startShuffle]);
+  }, [shuffleStartRequest, startShuffle]);
 
   const handleShufflePress = useCallback(() => {
     if (isShuffling) {
@@ -871,10 +918,14 @@ export default function Index() {
     setFlipPair(null);
     setIsFront(false);
     setIsDetailMode(false);
+    clearCardInteractionLock();
     startShuffle();
-  }, [isShuffling, startShuffle]);
+  }, [clearCardInteractionLock, isShuffling, startShuffle]);
 
   const handleCardTap = useCallback(() => {
+    if (isCardTransitioningRef.current) {
+      return;
+    }
     if (!currentCard || !flipPair) {
       return;
     }
@@ -898,6 +949,7 @@ export default function Index() {
       }
       const detailFlipFront =
         Platform.OS === "ios" ? detailBgNode : detailFullNode;
+      lockCardInteraction(CARD_FLIP_DURATION_MS + 220);
       setIsFront(false);
       setFlipPair({ back: frontNode, front: detailFlipFront });
       setIsDetailMode(true);
@@ -934,10 +986,12 @@ export default function Index() {
     }
 
     if (hasDetail && isDetailMode) {
+      lockCardInteraction(CARD_FLIP_DURATION_MS + 80);
       setIsFront((prev) => !prev);
       return;
     }
 
+    lockCardInteraction(CARD_FLIP_DURATION_MS + 80);
     setIsFront((prev) => !prev);
   }, [
     currentCard,
@@ -947,9 +1001,13 @@ export default function Index() {
     frontNode,
     isDetailMode,
     isFront,
+    lockCardInteraction,
   ]);
 
   const handleDetailBack = useCallback(() => {
+    if (isCardTransitioningRef.current) {
+      return;
+    }
     if (!currentCard || !frontNode) {
       return;
     }
@@ -961,6 +1019,7 @@ export default function Index() {
       clearTimeout(detailContentSwapTimeoutRef.current);
       detailContentSwapTimeoutRef.current = null;
     }
+    lockCardInteraction(CARD_FLIP_DURATION_MS + 220);
     setIsFront(false);
     setFlipPair({ back: backNode, front: frontNode });
     setIsDetailMode(false);
@@ -980,7 +1039,7 @@ export default function Index() {
       return;
     }
     scheduleFlipToFront();
-  }, [backNode, currentCard, frontNode]);
+  }, [backNode, currentCard, frontNode, lockCardInteraction]);
 
   const handleConfirmSelection = useCallback(
     (confirmed: boolean) => {
@@ -1485,7 +1544,7 @@ export default function Index() {
                   isFront={isFront}
                   front={flipPair?.front ?? frontNode}
                   back={flipPair?.back ?? backNode}
-                  disabled={false}
+                  disabled={isCardInteractionLocked}
                   style={[
                     styles.cardArea,
                     {

@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View,
   Platform,
   type StyleProp,
   type TextStyle,
@@ -119,7 +118,6 @@ export default function ThemedButton({
             style,
           ]}
         >
-          <View pointerEvents="none" style={styles.highlight} />
           <Text style={[labelStyle, labelStyleOverride]}>{label}</Text>
         </Animated.View>
       )}
@@ -170,17 +168,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
-  },
-  highlight: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    borderTopLeftRadius: radii.lg,
-    borderTopRightRadius: radii.lg,
-    backgroundColor: colors.text,
-    opacity: 0.18,
   },
   disabled: {
     opacity: 0.6,

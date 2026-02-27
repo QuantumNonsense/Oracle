@@ -134,7 +134,7 @@ export default function CardFlip({
     }
     return flip.interpolate({
       inputRange: [0, 88, 90, 92, 180],
-      outputRange: [0, 0, 0, 1, 1],
+      outputRange: [0, 0, 0.18, 1, 1],
     });
   }, [flip, ios]);
 
@@ -144,7 +144,7 @@ export default function CardFlip({
     }
     return flip.interpolate({
       inputRange: [0, 88, 90, 92, 180],
-      outputRange: [1, 1, 0, 0, 0],
+      outputRange: [1, 1, 0.18, 0, 0],
     });
   }, [flip, ios]);
 
