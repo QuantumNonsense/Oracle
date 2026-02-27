@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useFonts } from "expo-font";
+import { Audio, type AVPlaybackStatus } from "expo-av";
 import {
   Alert,
   Animated,
@@ -72,6 +73,11 @@ const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
+const AUDIO_ENABLED_KEY = "oracle:audio-enabled:v1";
+const MUSIC_TRACKS = [
+  require("../assets/Music/Mosslight.Whispers.mp3"),
+  require("../assets/Music/Mosslight.Whispers.2.mp3"),
+];
 
 type HistoryEntry = {
   id: string;
@@ -256,6 +262,7 @@ export default function Index() {
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
@@ -294,6 +301,10 @@ export default function Index() {
   const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
+  const isAudioEnabledRef = useRef(true);
+  const activeTrackIndexRef = useRef(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const audioLoadVersionRef = useRef(0);
   const [isCardInteractionLocked, setIsCardInteractionLocked] = useState(false);
   const backNode = useMemo(
     () => <Image source={cardBackImage} style={styles.cardImage} />,
@@ -414,13 +425,116 @@ export default function Index() {
   }, [currentCard, detailContentNode]);
 
   useEffect(() => {
+    isAudioEnabledRef.current = isAudioEnabled;
+  }, [isAudioEnabled]);
+
+  const unloadCurrentSound = useCallback(async () => {
+    const activeSound = soundRef.current;
+    soundRef.current = null;
+    if (!activeSound) {
+      return;
+    }
+    activeSound.setOnPlaybackStatusUpdate(null);
+    try {
+      await activeSound.unloadAsync();
+    } catch (error) {
+      // Ignore unload errors from already-released audio instances.
+    }
+  }, []);
+
+  const playTrackAtIndex = useCallback(
+    async (index: number) => {
+      if (!isAudioEnabledRef.current) {
+        return;
+      }
+      const loadVersion = ++audioLoadVersionRef.current;
+      await unloadCurrentSound();
+      try {
+        const normalizedIndex = ((index % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) %
+          MUSIC_TRACKS.length;
+        const { sound } = await Audio.Sound.createAsync(MUSIC_TRACKS[normalizedIndex], {
+          shouldPlay: true,
+          isLooping: false,
+          volume: 1,
+        });
+        if (loadVersion !== audioLoadVersionRef.current) {
+          await sound.unloadAsync();
+          return;
+        }
+        soundRef.current = sound;
+        activeTrackIndexRef.current = normalizedIndex;
+        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+          if (!status.isLoaded || !status.didJustFinish || !isAudioEnabledRef.current) {
+            return;
+          }
+          void playTrackAtIndex((activeTrackIndexRef.current + 1) % MUSIC_TRACKS.length);
+        });
+      } catch (error) {
+        // Autoplay can be blocked on web until user interaction.
+      }
+    },
+    [unloadCurrentSound],
+  );
+
+  useEffect(() => {
+    const configureAndStartAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+        });
+      } catch (error) {
+        // Ignore unsupported platform audio mode errors.
+      }
+      if (isAudioEnabledRef.current) {
+        await playTrackAtIndex(0);
+      }
+    };
+    void configureAndStartAudio();
+    return () => {
+      audioLoadVersionRef.current += 1;
+      void unloadCurrentSound();
+    };
+  }, [playTrackAtIndex, unloadCurrentSound]);
+
+  useEffect(() => {
+    if (isAudioEnabled) {
+      if (soundRef.current) {
+        void soundRef.current.playAsync();
+      } else {
+        void playTrackAtIndex(activeTrackIndexRef.current);
+      }
+      return;
+    }
+    if (soundRef.current) {
+      void soundRef.current.pauseAsync();
+    }
+  }, [isAudioEnabled, playTrackAtIndex]);
+
+  const toggleAudio = useCallback(() => {
+    setIsAudioEnabled((prev) => {
+      const next = !prev;
+      isAudioEnabledRef.current = next;
+      void storage.setItem(AUDIO_ENABLED_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
     const loadState = async () => {
-      const [storedFavorites, storedLast, storedHistory, storedJournals] =
+      const [
+        storedFavorites,
+        storedLast,
+        storedHistory,
+        storedJournals,
+        storedAudioEnabled,
+      ] =
         await Promise.all([
           storage.getItem(FAVORITES_KEY),
           storage.getItem(LAST_CARD_KEY),
           storage.getItem(HISTORY_KEY),
           storage.getItem(JOURNAL_KEY),
+          storage.getItem(AUDIO_ENABLED_KEY),
         ]);
 
       if (storedFavorites) {
@@ -445,6 +559,12 @@ export default function Index() {
 
       if (storedJournals) {
         setJournalEntries(parseStoredJournals(storedJournals));
+      }
+
+      if (storedAudioEnabled !== null) {
+        const nextEnabled = storedAudioEnabled === "true";
+        isAudioEnabledRef.current = nextEnabled;
+        setIsAudioEnabled(nextEnabled);
       }
     };
 
@@ -1647,8 +1767,29 @@ export default function Index() {
                 ) : null}
                 {Platform.OS === "ios" && isDetailMode && isFront ? (
                   <View
+                    pointerEvents="none"
+                    style={[
+                      styles.detailOverlayFloat,
+                      styles.detailOverlayBgLayer,
+                      { height: cardWidth * 1.5 },
+                    ]}
+                  >
+                    {currentCard?.detailImage ? (
+                      <Image
+                        source={currentCard.detailImage}
+                        style={styles.cardImage}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+                {Platform.OS === "ios" && isDetailMode && isFront ? (
+                  <View
                     pointerEvents="box-none"
-                    style={styles.detailOverlayFloat}
+                    style={[
+                      styles.detailOverlayFloat,
+                      styles.detailOverlayTextLayer,
+                      { height: cardWidth * 1.5 },
+                    ]}
                   >
                     {detailOverlayNode}
                   </View>
@@ -2078,6 +2219,21 @@ export default function Index() {
           </View>
         </View>
       </ScrollView>
+      <Pressable
+        onPress={toggleAudio}
+        accessibilityRole="button"
+        accessibilityLabel={isAudioEnabled ? "Disable sound" : "Enable sound"}
+        style={({ pressed }) => [
+          styles.audioToggle,
+          {
+            left: spacing.md + insets.left,
+            bottom: spacing.xs + insets.bottom,
+          },
+          pressed ? styles.audioTogglePressed : null,
+        ]}
+      >
+        <Text style={styles.audioToggleIcon}>{isAudioEnabled ? "🔊" : "🔇"}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -2097,6 +2253,25 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     width: "100%",
+  },
+  audioToggle: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(18, 16, 36, 0.66)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    zIndex: 40,
+  },
+  audioTogglePressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.88,
+  },
+  audioToggleIcon: {
+    fontSize: 21,
   },
   screen: {
     backgroundColor: "transparent",
@@ -2188,7 +2363,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardActions: {
-    width: "100%",
+    width: "80%",
+    maxWidth: 280,
+    alignSelf: "center",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2267,8 +2444,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     right: 0,
-    bottom: 0,
     left: 0,
+    borderRadius: radii.lg,
+    overflow: "hidden",
+  },
+  detailOverlayBgLayer: {
+    zIndex: 3,
+  },
+  detailOverlayTextLayer: {
+    zIndex: 4,
   },
   detailScroll: {
     flex: 1,
