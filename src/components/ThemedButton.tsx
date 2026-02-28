@@ -23,9 +23,9 @@ type ThemedButtonProps = {
 };
 
 const buttonFontFamily = Platform.select({
-  ios: "TudorRose",
-  android: "TudorRose",
-  default: "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
+  ios: "MilongaRegular",
+  android: "MilongaRegular",
+  default: "'MilongaRegular', 'Times New Roman', serif",
 });
 
 export default function ThemedButton({

@@ -16,6 +16,7 @@ import {
   Image,
   ImageBackground,
   InteractionManager,
+  KeyboardAvoidingView,
   Modal,
   PixelRatio,
   Platform,
@@ -65,6 +66,7 @@ const SHUFFLE_TOTAL_DURATION =
   SHUFFLE_TIMING.SWIRL_RESET_DURATION +
   SHUFFLE_TIMING.EXPAND_DURATION;
 const CARD_FLIP_DURATION_MS = 380;
+const IOS_DETAIL_OVERLAY_HOLD_MS = 180;
 const DETAIL_TEXT_BLANK_MS = 200;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
@@ -132,10 +134,9 @@ const storage = {
 const cardsById = new Map(cards.map((card) => [card.id, card]));
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const appFontFamily = Platform.select({
-  ios: "TudorRose",
-  android: "TudorRose",
-  default:
-    "'TudorRose', 'Noteworthy', 'Comic Sans MS', 'Brush Script MT', cursive",
+  ios: "MilongaRegular",
+  android: "MilongaRegular",
+  default: "'MilongaRegular', 'Times New Roman', serif",
 });
 const detailFontFamily = appFontFamily;
 const detailFontFamilyBold = appFontFamily;
@@ -201,16 +202,15 @@ const parseStoredJournals = (raw: string): JournalEntry[] => {
     const parsed = JSON.parse(raw) as unknown;
     if (Array.isArray(parsed)) {
       return parsed
-        .filter(
-          (item): item is JournalEntry =>
-            Boolean(
-              item &&
-                typeof item === "object" &&
-                typeof (item as JournalEntry).id === "string" &&
-                typeof (item as JournalEntry).cardId === "string" &&
-                typeof (item as JournalEntry).entry === "string" &&
-                typeof (item as JournalEntry).createdAt === "string",
-            ),
+        .filter((item): item is JournalEntry =>
+          Boolean(
+            item &&
+            typeof item === "object" &&
+            typeof (item as JournalEntry).id === "string" &&
+            typeof (item as JournalEntry).cardId === "string" &&
+            typeof (item as JournalEntry).entry === "string" &&
+            typeof (item as JournalEntry).createdAt === "string",
+          ),
         )
         .sort(
           (a, b) =>
@@ -241,12 +241,19 @@ const parseStoredJournals = (raw: string): JournalEntry[] => {
 
 export default function Index() {
   const [fontsLoaded] = useFonts({
-    TudorRose: require("../assets/TudorRose.otf"),
+    MilongaRegular: require("../assets/Milonga-Regular.ttf"),
   });
   const bg = require("../assets/backgrounds/mushroom-field.png");
   const shuffleImage = require("../assets/Shuffle.png");
+  const scrollImage = require("../assets/Scroll.png");
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const journalComposeWidth = Math.min(
+    windowWidth - insets.left - insets.right - 2,
+    560,
+  );
+  const journalContentWidth = Math.min(journalComposeWidth * 0.76, 332);
+  const journalComposeOffsetX = Platform.OS === "ios" ? 20 : 0;
   const [deckState, setDeckState] = useState<DeckState>({
     cards: drawableCards,
     order: [],
@@ -295,6 +302,9 @@ export default function Index() {
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const iosDetailOverlayHoldTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const cardInteractionLockTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -306,6 +316,7 @@ export default function Index() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioLoadVersionRef = useRef(0);
   const [isCardInteractionLocked, setIsCardInteractionLocked] = useState(false);
+  const [isIosDetailOverlayHeld, setIsIosDetailOverlayHeld] = useState(false);
   const backNode = useMemo(
     () => <Image source={cardBackImage} style={styles.cardImage} />,
     [],
@@ -328,11 +339,11 @@ export default function Index() {
       />
     );
   }, [currentCard]);
-  const journalEntryList = useMemo(
-    () => journalEntries,
-    [journalEntries],
+  const journalEntryList = useMemo(() => journalEntries, [journalEntries]);
+  const detailLines = useMemo(
+    () => buildDetailLines(currentCard),
+    [currentCard],
   );
-  const detailLines = useMemo(() => buildDetailLines(currentCard), [currentCard]);
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
@@ -450,13 +461,17 @@ export default function Index() {
       const loadVersion = ++audioLoadVersionRef.current;
       await unloadCurrentSound();
       try {
-        const normalizedIndex = ((index % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) %
+        const normalizedIndex =
+          ((index % MUSIC_TRACKS.length) + MUSIC_TRACKS.length) %
           MUSIC_TRACKS.length;
-        const { sound } = await Audio.Sound.createAsync(MUSIC_TRACKS[normalizedIndex], {
-          shouldPlay: true,
-          isLooping: false,
-          volume: 1,
-        });
+        const { sound } = await Audio.Sound.createAsync(
+          MUSIC_TRACKS[normalizedIndex],
+          {
+            shouldPlay: true,
+            isLooping: false,
+            volume: 1,
+          },
+        );
         if (loadVersion !== audioLoadVersionRef.current) {
           await sound.unloadAsync();
           return;
@@ -464,10 +479,16 @@ export default function Index() {
         soundRef.current = sound;
         activeTrackIndexRef.current = normalizedIndex;
         sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (!status.isLoaded || !status.didJustFinish || !isAudioEnabledRef.current) {
+          if (
+            !status.isLoaded ||
+            !status.didJustFinish ||
+            !isAudioEnabledRef.current
+          ) {
             return;
           }
-          void playTrackAtIndex((activeTrackIndexRef.current + 1) % MUSIC_TRACKS.length);
+          void playTrackAtIndex(
+            (activeTrackIndexRef.current + 1) % MUSIC_TRACKS.length,
+          );
         });
       } catch (error) {
         // Autoplay can be blocked on web until user interaction.
@@ -528,14 +549,13 @@ export default function Index() {
         storedHistory,
         storedJournals,
         storedAudioEnabled,
-      ] =
-        await Promise.all([
-          storage.getItem(FAVORITES_KEY),
-          storage.getItem(LAST_CARD_KEY),
-          storage.getItem(HISTORY_KEY),
-          storage.getItem(JOURNAL_KEY),
-          storage.getItem(AUDIO_ENABLED_KEY),
-        ]);
+      ] = await Promise.all([
+        storage.getItem(FAVORITES_KEY),
+        storage.getItem(LAST_CARD_KEY),
+        storage.getItem(HISTORY_KEY),
+        storage.getItem(JOURNAL_KEY),
+        storage.getItem(AUDIO_ENABLED_KEY),
+      ]);
 
       if (storedFavorites) {
         try {
@@ -644,12 +664,17 @@ export default function Index() {
       clearTimeout(detailContentSwapTimeoutRef.current);
       detailContentSwapTimeoutRef.current = null;
     }
+    if (iosDetailOverlayHoldTimeoutRef.current) {
+      clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
+      iosDetailOverlayHoldTimeoutRef.current = null;
+    }
     if (cardInteractionLockTimeoutRef.current) {
       clearTimeout(cardInteractionLockTimeoutRef.current);
       cardInteractionLockTimeoutRef.current = null;
     }
     isCardTransitioningRef.current = false;
     setIsCardInteractionLocked(false);
+    setIsIosDetailOverlayHeld(false);
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
     selectionAnim.setValue(0);
@@ -761,6 +786,10 @@ export default function Index() {
         clearTimeout(detailContentSwapTimeoutRef.current);
         detailContentSwapTimeoutRef.current = null;
       }
+      if (iosDetailOverlayHoldTimeoutRef.current) {
+        clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
+        iosDetailOverlayHoldTimeoutRef.current = null;
+      }
       if (cardInteractionLockTimeoutRef.current) {
         clearTimeout(cardInteractionLockTimeoutRef.current);
         cardInteractionLockTimeoutRef.current = null;
@@ -768,6 +797,32 @@ export default function Index() {
       isCardTransitioningRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") {
+      setIsIosDetailOverlayHeld(false);
+      return;
+    }
+    if (iosDetailOverlayHoldTimeoutRef.current) {
+      clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
+      iosDetailOverlayHoldTimeoutRef.current = null;
+    }
+    if (!currentCard || !isDetailMode) {
+      setIsIosDetailOverlayHeld(false);
+      return;
+    }
+    if (isFront) {
+      setIsIosDetailOverlayHeld(true);
+      return;
+    }
+    if (!isIosDetailOverlayHeld) {
+      return;
+    }
+    iosDetailOverlayHoldTimeoutRef.current = setTimeout(() => {
+      setIsIosDetailOverlayHeld(false);
+      iosDetailOverlayHoldTimeoutRef.current = null;
+    }, IOS_DETAIL_OVERLAY_HOLD_MS);
+  }, [currentCard, isDetailMode, isFront, isIosDetailOverlayHeld]);
 
   const clearCardInteractionLock = useCallback(() => {
     if (cardInteractionLockTimeoutRef.current) {
@@ -778,22 +833,19 @@ export default function Index() {
     setIsCardInteractionLocked(false);
   }, []);
 
-  const lockCardInteraction = useCallback(
-    (durationMs: number) => {
-      if (cardInteractionLockTimeoutRef.current) {
-        clearTimeout(cardInteractionLockTimeoutRef.current);
-        cardInteractionLockTimeoutRef.current = null;
-      }
-      isCardTransitioningRef.current = true;
-      setIsCardInteractionLocked(true);
-      cardInteractionLockTimeoutRef.current = setTimeout(() => {
-        isCardTransitioningRef.current = false;
-        setIsCardInteractionLocked(false);
-        cardInteractionLockTimeoutRef.current = null;
-      }, durationMs);
-    },
-    [],
-  );
+  const lockCardInteraction = useCallback((durationMs: number) => {
+    if (cardInteractionLockTimeoutRef.current) {
+      clearTimeout(cardInteractionLockTimeoutRef.current);
+      cardInteractionLockTimeoutRef.current = null;
+    }
+    isCardTransitioningRef.current = true;
+    setIsCardInteractionLocked(true);
+    cardInteractionLockTimeoutRef.current = setTimeout(() => {
+      isCardTransitioningRef.current = false;
+      setIsCardInteractionLocked(false);
+      cardInteractionLockTimeoutRef.current = null;
+    }, durationMs);
+  }, []);
 
   useEffect(() => {
     clearCardInteractionLock();
@@ -830,190 +882,195 @@ export default function Index() {
     setIsShuffling(false);
   }, [fanCollapse, shuffleDeck, shuffleShake, shuffleSwirl]);
 
-  const startShuffle = useCallback((initialProgress = 0) => {
-    setIsShuffling(true);
-    const progress = Math.min(Math.max(initialProgress, 0), 1);
-    let elapsed = SHUFFLE_TOTAL_DURATION * progress;
-    const consumeElapsed = (duration: number) => {
-      const consumed = Math.min(elapsed, duration);
-      elapsed -= consumed;
-      return consumed;
-    };
-    const collapseElapsed = consumeElapsed(SHUFFLE_TIMING.COLLAPSE_DURATION);
-    const holdBeforeShakeElapsed = consumeElapsed(
-      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE,
-    );
-    const shakeElapsed = consumeElapsed(SHUFFLE_TIMING.SHAKE_DURATION);
-    const holdAfterShakeElapsed = consumeElapsed(SHUFFLE_TIMING.HOLD_AFTER_SHAKE);
-    const swirlOneElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
-    const swirlResetOneElapsed = consumeElapsed(
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION,
-    );
-    const swirlTwoElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
-    const swirlResetTwoElapsed = consumeElapsed(
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION,
-    );
-    const expandElapsed = consumeElapsed(SHUFFLE_TIMING.EXPAND_DURATION);
+  const startShuffle = useCallback(
+    (initialProgress = 0) => {
+      setIsShuffling(true);
+      const progress = Math.min(Math.max(initialProgress, 0), 1);
+      let elapsed = SHUFFLE_TOTAL_DURATION * progress;
+      const consumeElapsed = (duration: number) => {
+        const consumed = Math.min(elapsed, duration);
+        elapsed -= consumed;
+        return consumed;
+      };
+      const collapseElapsed = consumeElapsed(SHUFFLE_TIMING.COLLAPSE_DURATION);
+      const holdBeforeShakeElapsed = consumeElapsed(
+        SHUFFLE_TIMING.HOLD_BEFORE_SHAKE,
+      );
+      const shakeElapsed = consumeElapsed(SHUFFLE_TIMING.SHAKE_DURATION);
+      const holdAfterShakeElapsed = consumeElapsed(
+        SHUFFLE_TIMING.HOLD_AFTER_SHAKE,
+      );
+      const swirlOneElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
+      const swirlResetOneElapsed = consumeElapsed(
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+      );
+      const swirlTwoElapsed = consumeElapsed(SHUFFLE_TIMING.SWIRL_DURATION);
+      const swirlResetTwoElapsed = consumeElapsed(
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION,
+      );
+      const expandElapsed = consumeElapsed(SHUFFLE_TIMING.EXPAND_DURATION);
 
-    const collapseProgress =
-      SHUFFLE_TIMING.COLLAPSE_DURATION > 0
-        ? collapseElapsed / SHUFFLE_TIMING.COLLAPSE_DURATION
-        : 1;
-    const expandProgress =
-      SHUFFLE_TIMING.EXPAND_DURATION > 0
-        ? expandElapsed / SHUFFLE_TIMING.EXPAND_DURATION
-        : 1;
-
-    if (collapseElapsed < SHUFFLE_TIMING.COLLAPSE_DURATION) {
-      fanCollapse.setValue(collapseProgress);
-    } else if (expandElapsed > 0) {
-      fanCollapse.setValue(1 - expandProgress);
-    } else if (progress >= 1) {
-      fanCollapse.setValue(0);
-    } else {
-      fanCollapse.setValue(1);
-    }
-    shuffleShake.setValue(0);
-
-    if (swirlOneElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
-      const swirlProgress =
-        SHUFFLE_TIMING.SWIRL_DURATION > 0
-          ? swirlOneElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+      const collapseProgress =
+        SHUFFLE_TIMING.COLLAPSE_DURATION > 0
+          ? collapseElapsed / SHUFFLE_TIMING.COLLAPSE_DURATION
           : 1;
-      shuffleSwirl.setValue(swirlProgress);
-    } else if (swirlResetOneElapsed > 0) {
-      const swirlProgress =
-        SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
-          ? 1 - swirlResetOneElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
-          : 0;
-      shuffleSwirl.setValue(swirlProgress);
-    } else if (swirlTwoElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
-      const swirlProgress =
-        SHUFFLE_TIMING.SWIRL_DURATION > 0
-          ? swirlTwoElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+      const expandProgress =
+        SHUFFLE_TIMING.EXPAND_DURATION > 0
+          ? expandElapsed / SHUFFLE_TIMING.EXPAND_DURATION
           : 1;
-      shuffleSwirl.setValue(swirlProgress);
-    } else if (swirlResetTwoElapsed > 0) {
-      const swirlProgress =
-        SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
-          ? 1 - swirlResetTwoElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
-          : 0;
-      shuffleSwirl.setValue(swirlProgress);
-    } else {
-      shuffleSwirl.setValue(0);
-    }
 
-    const stepDuration =
-      SHUFFLE_TIMING.SHAKE_DURATION / (SHUFFLE_SHAKE_STEPS * 2);
-    const shakeSteps = Array.from({ length: SHUFFLE_SHAKE_STEPS }).flatMap(
-      () => [
-        Animated.timing(shuffleShake, {
-          toValue: 1,
-          duration: stepDuration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shuffleShake, {
-          toValue: 0,
-          duration: stepDuration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      ],
-    );
-
-    const animationSteps: Animated.CompositeAnimation[] = [];
-    const collapseRemaining =
-      SHUFFLE_TIMING.COLLAPSE_DURATION - collapseElapsed;
-    if (collapseRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(fanCollapse, {
-          toValue: 1,
-          duration: collapseRemaining,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      );
-    }
-    const holdBeforeShakeRemaining =
-      SHUFFLE_TIMING.HOLD_BEFORE_SHAKE - holdBeforeShakeElapsed;
-    if (holdBeforeShakeRemaining > 0) {
-      animationSteps.push(Animated.delay(holdBeforeShakeRemaining));
-    }
-    if (shakeElapsed < SHUFFLE_TIMING.SHAKE_DURATION) {
-      animationSteps.push(Animated.sequence(shakeSteps));
-    }
-    const holdAfterShakeRemaining =
-      SHUFFLE_TIMING.HOLD_AFTER_SHAKE - holdAfterShakeElapsed;
-    if (holdAfterShakeRemaining > 0) {
-      animationSteps.push(Animated.delay(holdAfterShakeRemaining));
-    }
-    const swirlOneRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlOneElapsed;
-    if (swirlOneRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(shuffleSwirl, {
-          toValue: 1,
-          duration: swirlOneRemaining,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      );
-    }
-    const swirlResetOneRemaining =
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetOneElapsed;
-    if (swirlResetOneRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(shuffleSwirl, {
-          toValue: 0,
-          duration: swirlResetOneRemaining,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
-    }
-    const swirlTwoRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlTwoElapsed;
-    if (swirlTwoRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(shuffleSwirl, {
-          toValue: 1,
-          duration: swirlTwoRemaining,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      );
-    }
-    const swirlResetTwoRemaining =
-      SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetTwoElapsed;
-    if (swirlResetTwoRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(shuffleSwirl, {
-          toValue: 0,
-          duration: swirlResetTwoRemaining,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
-    }
-    const expandRemaining = SHUFFLE_TIMING.EXPAND_DURATION - expandElapsed;
-    if (expandRemaining > 0) {
-      animationSteps.push(
-        Animated.timing(fanCollapse, {
-          toValue: 0,
-          duration: expandRemaining,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      );
-    }
-
-    const animation = Animated.sequence(animationSteps);
-    shuffleAnimRef.current = animation;
-    animation.start(({ finished }) => {
-      if (finished) {
-        handleShuffleDone();
+      if (collapseElapsed < SHUFFLE_TIMING.COLLAPSE_DURATION) {
+        fanCollapse.setValue(collapseProgress);
+      } else if (expandElapsed > 0) {
+        fanCollapse.setValue(1 - expandProgress);
+      } else if (progress >= 1) {
+        fanCollapse.setValue(0);
+      } else {
+        fanCollapse.setValue(1);
       }
-    });
-  }, [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl]);
+      shuffleShake.setValue(0);
+
+      if (swirlOneElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
+        const swirlProgress =
+          SHUFFLE_TIMING.SWIRL_DURATION > 0
+            ? swirlOneElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+            : 1;
+        shuffleSwirl.setValue(swirlProgress);
+      } else if (swirlResetOneElapsed > 0) {
+        const swirlProgress =
+          SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
+            ? 1 - swirlResetOneElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
+            : 0;
+        shuffleSwirl.setValue(swirlProgress);
+      } else if (swirlTwoElapsed < SHUFFLE_TIMING.SWIRL_DURATION) {
+        const swirlProgress =
+          SHUFFLE_TIMING.SWIRL_DURATION > 0
+            ? swirlTwoElapsed / SHUFFLE_TIMING.SWIRL_DURATION
+            : 1;
+        shuffleSwirl.setValue(swirlProgress);
+      } else if (swirlResetTwoElapsed > 0) {
+        const swirlProgress =
+          SHUFFLE_TIMING.SWIRL_RESET_DURATION > 0
+            ? 1 - swirlResetTwoElapsed / SHUFFLE_TIMING.SWIRL_RESET_DURATION
+            : 0;
+        shuffleSwirl.setValue(swirlProgress);
+      } else {
+        shuffleSwirl.setValue(0);
+      }
+
+      const stepDuration =
+        SHUFFLE_TIMING.SHAKE_DURATION / (SHUFFLE_SHAKE_STEPS * 2);
+      const shakeSteps = Array.from({ length: SHUFFLE_SHAKE_STEPS }).flatMap(
+        () => [
+          Animated.timing(shuffleShake, {
+            toValue: 1,
+            duration: stepDuration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shuffleShake, {
+            toValue: 0,
+            duration: stepDuration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        ],
+      );
+
+      const animationSteps: Animated.CompositeAnimation[] = [];
+      const collapseRemaining =
+        SHUFFLE_TIMING.COLLAPSE_DURATION - collapseElapsed;
+      if (collapseRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 1,
+            duration: collapseRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+      const holdBeforeShakeRemaining =
+        SHUFFLE_TIMING.HOLD_BEFORE_SHAKE - holdBeforeShakeElapsed;
+      if (holdBeforeShakeRemaining > 0) {
+        animationSteps.push(Animated.delay(holdBeforeShakeRemaining));
+      }
+      if (shakeElapsed < SHUFFLE_TIMING.SHAKE_DURATION) {
+        animationSteps.push(Animated.sequence(shakeSteps));
+      }
+      const holdAfterShakeRemaining =
+        SHUFFLE_TIMING.HOLD_AFTER_SHAKE - holdAfterShakeElapsed;
+      if (holdAfterShakeRemaining > 0) {
+        animationSteps.push(Animated.delay(holdAfterShakeRemaining));
+      }
+      const swirlOneRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlOneElapsed;
+      if (swirlOneRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleSwirl, {
+            toValue: 1,
+            duration: swirlOneRemaining,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+      const swirlResetOneRemaining =
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetOneElapsed;
+      if (swirlResetOneRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleSwirl, {
+            toValue: 0,
+            duration: swirlResetOneRemaining,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        );
+      }
+      const swirlTwoRemaining = SHUFFLE_TIMING.SWIRL_DURATION - swirlTwoElapsed;
+      if (swirlTwoRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleSwirl, {
+            toValue: 1,
+            duration: swirlTwoRemaining,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+      const swirlResetTwoRemaining =
+        SHUFFLE_TIMING.SWIRL_RESET_DURATION - swirlResetTwoElapsed;
+      if (swirlResetTwoRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleSwirl, {
+            toValue: 0,
+            duration: swirlResetTwoRemaining,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+        );
+      }
+      const expandRemaining = SHUFFLE_TIMING.EXPAND_DURATION - expandElapsed;
+      if (expandRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 0,
+            duration: expandRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const animation = Animated.sequence(animationSteps);
+      shuffleAnimRef.current = animation;
+      animation.start(({ finished }) => {
+        if (finished) {
+          handleShuffleDone();
+        }
+      });
+    },
+    [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl],
+  );
 
   useEffect(() => {
     if (shuffleStartRequest < 1) {
@@ -1248,6 +1305,10 @@ export default function Index() {
     currentCard && currentCard.type === "card"
       ? favorites[currentCard.id]
       : false;
+  const showIosDetachedDetailOverlay =
+    Platform.OS === "ios" &&
+    isDetailMode &&
+    (isFront || isIosDetailOverlayHeld);
   const canFavorite = currentCard?.type === "card";
   const formattedHistory = useMemo(
     () =>
@@ -1328,22 +1389,20 @@ export default function Index() {
     tapHintAnim.stopAnimation();
     tapHintAnim.setValue(0);
     const anim = Animated.loop(
-      Animated.sequence(
-        [
-          Animated.timing(tapHintAnim, {
-            toValue: 1,
-            duration: isConfirmOpen ? 700 : 900,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(tapHintAnim, {
-            toValue: 0,
-            duration: isConfirmOpen ? 700 : 900,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ],
-      ),
+      Animated.sequence([
+        Animated.timing(tapHintAnim, {
+          toValue: 1,
+          duration: isConfirmOpen ? 700 : 900,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(tapHintAnim, {
+          toValue: 0,
+          duration: isConfirmOpen ? 700 : 900,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
     );
     anim.start();
     return () => anim.stop();
@@ -1475,40 +1534,37 @@ export default function Index() {
     },
     [setSelectedHistoryId],
   );
-  const renderJournalEntry = useCallback(
-    ({ item }: { item: JournalEntry }) => {
-      const card = cardsById.get(item.cardId) ?? null;
-      const title = card?.title ?? "Card";
-      return (
-        <Pressable
-          style={styles.journalEntry}
-          onPress={() => {
-            setSelectedJournalEntryId(item.id);
-            setIsJournalEntriesOpen(false);
-          }}
-          accessibilityLabel={`Open journal entry for ${title}`}
-        >
-          <View style={styles.journalEntryThumb}>
-            {card ? (
-              <Image source={card.image} style={styles.journalEntryThumbImage} />
-            ) : (
-              <View style={styles.thumbnailFallback} />
-            )}
-          </View>
-          <View style={styles.journalEntryContent}>
-            <Text style={styles.journalEntryTitle}>{title}</Text>
-            <Text style={styles.journalEntryDate}>
-              {formatHistoryDate(item.createdAt)}
-            </Text>
-            <Text style={styles.journalEntryBody} numberOfLines={2}>
-              {item.entry}
-            </Text>
-          </View>
-        </Pressable>
-      );
-    },
-    [],
-  );
+  const renderJournalEntry = useCallback(({ item }: { item: JournalEntry }) => {
+    const card = cardsById.get(item.cardId) ?? null;
+    const title = card?.title ?? "Card";
+    return (
+      <Pressable
+        style={styles.journalEntry}
+        onPress={() => {
+          setSelectedJournalEntryId(item.id);
+          setIsJournalEntriesOpen(false);
+        }}
+        accessibilityLabel={`Open journal entry for ${title}`}
+      >
+        <View style={styles.journalEntryThumb}>
+          {card ? (
+            <Image source={card.image} style={styles.journalEntryThumbImage} />
+          ) : (
+            <View style={styles.thumbnailFallback} />
+          )}
+        </View>
+        <View style={styles.journalEntryContent}>
+          <Text style={styles.journalEntryTitle}>{title}</Text>
+          <Text style={styles.journalEntryDate}>
+            {formatHistoryDate(item.createdAt)}
+          </Text>
+          <Text style={styles.journalEntryBody} numberOfLines={2}>
+            {item.entry}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }, []);
 
   if (!fontsLoaded) {
     return null;
@@ -1586,6 +1642,7 @@ export default function Index() {
                       pointerEvents="none"
                       style={[
                         styles.tapHint,
+                        styles.tapHintConfirm,
                         styles.tapHintLayer,
                         styles.tapHintGlowFar,
                         {
@@ -1610,6 +1667,7 @@ export default function Index() {
                       pointerEvents="none"
                       style={[
                         styles.tapHint,
+                        styles.tapHintConfirm,
                         styles.tapHintLayer,
                         styles.tapHintGlowNear,
                         {
@@ -1635,6 +1693,7 @@ export default function Index() {
                 <Animated.Text
                   style={[
                     styles.tapHint,
+                    isConfirmOpen ? styles.tapHintConfirm : null,
                     isConfirmOpen ? styles.tapHintCoreConfirm : null,
                     {
                       opacity: tapHintAnim.interpolate({
@@ -1679,6 +1738,7 @@ export default function Index() {
                       pointerEvents="none"
                       style={[
                         styles.readMoreHint,
+                        styles.readMoreHintSmall,
                         styles.readMoreHintLayer,
                         styles.readMoreHintGlowFar,
                         {
@@ -1703,6 +1763,7 @@ export default function Index() {
                       pointerEvents="none"
                       style={[
                         styles.readMoreHint,
+                        styles.readMoreHintSmall,
                         styles.readMoreHintLayer,
                         styles.readMoreHintGlowNear,
                         {
@@ -1726,6 +1787,7 @@ export default function Index() {
                     <Animated.Text
                       style={[
                         styles.readMoreHint,
+                        styles.readMoreHintSmall,
                         styles.readMoreHintCore,
                         {
                           opacity: readMoreAnim.interpolate({
@@ -1765,7 +1827,7 @@ export default function Index() {
                     />
                   </View>
                 ) : null}
-                {Platform.OS === "ios" && isDetailMode && isFront ? (
+                {showIosDetachedDetailOverlay ? (
                   <View
                     pointerEvents="none"
                     style={[
@@ -1782,7 +1844,7 @@ export default function Index() {
                     ) : null}
                   </View>
                 ) : null}
-                {Platform.OS === "ios" && isDetailMode && isFront ? (
+                {showIosDetachedDetailOverlay ? (
                   <View
                     pointerEvents="box-none"
                     style={[
@@ -2179,42 +2241,82 @@ export default function Index() {
             </Modal>
 
             <Modal transparent visible={isJournalOpen} animationType="fade">
-              <View style={styles.modalOverlay}>
-                <View style={[styles.modalCard, styles.journalCard]}>
-                  <Text style={[styles.modalSubtitle, styles.journalSubtitle]}>
-                    {currentCard?.title ?? "Card"}
-                  </Text>
-                  <View style={styles.journalPeekPanel}>
-                    <ScrollView
-                      style={styles.journalPeekScrollArea}
-                      contentContainerStyle={styles.journalPeekScroll}
-                      showsVerticalScrollIndicator={false}
+              <KeyboardAvoidingView
+                style={styles.modalKeyboardAvoid}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                keyboardVerticalOffset={insets.top + spacing.md}
+              >
+                <View style={[styles.modalOverlay, styles.journalComposeOverlay]}>
+                  <View
+                    style={[
+                      styles.modalCard,
+                      styles.journalCard,
+                      styles.journalComposeCard,
+                      {
+                        width: journalComposeWidth,
+                        transform: [{ translateX: journalComposeOffsetX }],
+                      },
+                    ]}
+                  >
+                    <ImageBackground
+                      source={scrollImage}
+                      style={styles.journalComposeBg}
+                      imageStyle={styles.journalComposeBgImage}
+                      resizeMode="stretch"
                     >
-                      <Text style={styles.journalPeekText}>
-                        {journalPeekText}
-                      </Text>
-                    </ScrollView>
-                  </View>
-                  <TextInput
-                    value={journalDraft}
-                    onChangeText={setJournalDraft}
-                    placeholder="Write your thoughts..."
-                    placeholderTextColor="rgba(17, 16, 15, 0.45)"
-                    multiline
-                    textAlignVertical="top"
-                    style={styles.journalInput}
-                  />
-                  <View style={styles.journalActions}>
-                    <ThemedButton
-                      label="Save and Close"
-                      onPress={saveJournal}
-                      variant="secondary"
-                      style={styles.cardActionButton}
-                      labelStyle={styles.cardActionLabel}
-                    />
+                      <View
+                        style={[
+                          styles.journalComposeContent,
+                          { width: journalContentWidth },
+                        ]}
+                      >
+                        <Text
+                          allowFontScaling={false}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.68}
+                          numberOfLines={2}
+                          style={[styles.modalSubtitle, styles.journalSubtitle]}
+                        >
+                          {currentCard?.title ?? "Card"}
+                        </Text>
+                        <View style={styles.journalPeekPanel}>
+                          <ScrollView
+                            style={styles.journalPeekScrollArea}
+                            contentContainerStyle={styles.journalPeekScroll}
+                            showsVerticalScrollIndicator={false}
+                          >
+                            <Text
+                              allowFontScaling={false}
+                              style={styles.journalPeekText}
+                            >
+                              {journalPeekText}
+                            </Text>
+                          </ScrollView>
+                        </View>
+                        <TextInput
+                          value={journalDraft}
+                          onChangeText={setJournalDraft}
+                          placeholder="Write your thoughts..."
+                          placeholderTextColor="rgba(17, 16, 15, 0.45)"
+                          multiline
+                          textAlignVertical="top"
+                          allowFontScaling={false}
+                          style={styles.journalInput}
+                        />
+                        <View style={styles.journalActions}>
+                          <ThemedButton
+                            label="Save and Close"
+                            onPress={saveJournal}
+                            variant="secondary"
+                            style={styles.cardActionButton}
+                            labelStyle={styles.cardActionLabel}
+                          />
+                        </View>
+                      </View>
+                    </ImageBackground>
                   </View>
                 </View>
-              </View>
+              </KeyboardAvoidingView>
             </Modal>
           </View>
         </View>
@@ -2232,7 +2334,9 @@ export default function Index() {
           pressed ? styles.audioTogglePressed : null,
         ]}
       >
-        <Text style={styles.audioToggleIcon}>{isAudioEnabled ? "🔊" : "🔇"}</Text>
+        <Text style={styles.audioToggleIcon}>
+          {isAudioEnabled ? "🔊" : "🔇"}
+        </Text>
       </Pressable>
     </View>
   );
@@ -2321,12 +2425,15 @@ const styles = StyleSheet.create({
     fontSize: Math.round((typography.subtitle + 2) * 1.3),
     fontFamily: appFontFamily,
     fontWeight: "800",
-    color: "#000",
+    color: "#50250E",
     textAlign: "center",
     letterSpacing: 0.6,
-    textShadowColor: "rgba(255,255,255,0.85)",
+    textShadowColor: "rgba(255, 255, 255, 0.5)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  tapHintConfirm: {
+    fontSize: Math.round((typography.subtitle + 2) * 1.3 * 0.8),
   },
   tapHintWrap: {
     position: "relative",
@@ -2341,20 +2448,20 @@ const styles = StyleSheet.create({
     right: 0,
   },
   tapHintGlowFar: {
-    color: "#fff",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "rgba(255, 255, 255, 0.45)",
+    textShadowColor: "rgba(255, 255, 255, 0.45)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 22,
+    textShadowRadius: 18,
   },
   tapHintGlowNear: {
-    color: "#fff",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "rgba(255, 255, 255, 0.62)",
+    textShadowColor: "rgba(255, 255, 255, 0.62)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 11,
+    textShadowRadius: 9,
   },
   tapHintCoreConfirm: {
-    color: "#000",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "#50250E",
+    textShadowColor: "rgba(255, 255, 255, 0.55)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 6,
   },
@@ -2385,20 +2492,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardActionLabel: {
-    color: "#11110f",
+    color: "#50250E",
     letterSpacing: 0.3,
     fontSize: 18,
   },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
     fontFamily: appFontFamily,
-    color: "#000",
+    color: "#50250E",
     textAlign: "center",
     letterSpacing: 0.4,
-    textShadowColor: "rgba(255,255,255,0.95)",
+    textShadowColor: "rgba(255, 255, 255, 0.58)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 6,
     fontWeight: "800",
+  },
+  readMoreHintSmall: {
+    fontSize: Math.round(typography.subtitle * 3 * 0.7),
   },
   readMoreHintWrap: {
     position: "relative",
@@ -2412,20 +2522,20 @@ const styles = StyleSheet.create({
     right: 0,
   },
   readMoreHintGlowFar: {
-    color: "#fff",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "rgba(255, 255, 255, 0.45)",
+    textShadowColor: "rgba(255, 255, 255, 0.45)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 24,
+    textShadowRadius: 20,
   },
   readMoreHintGlowNear: {
-    color: "#fff",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "rgba(255, 255, 255, 0.62)",
+    textShadowColor: "rgba(255, 255, 255, 0.62)",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 13,
+    textShadowRadius: 11,
   },
   readMoreHintCore: {
-    color: "#000",
-    textShadowColor: "rgba(255, 255, 255, 1)",
+    color: "#50250E",
+    textShadowColor: "rgba(255, 255, 255, 0.58)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 7,
   },
@@ -2481,14 +2591,14 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.2)",
   },
   detailBackButtonText: {
-    color: "#000",
+    color: "#50250E",
     fontSize: 12,
     fontWeight: "600",
     fontFamily: appFontFamily,
   },
   detailTitleText: {
     fontFamily: detailFontFamilyBold,
-    color: "#000",
+    color: "#50250E",
     fontSize: Math.round(22 * 1.3),
     fontStyle: "italic",
     marginBottom: spacing.xs,
@@ -2496,7 +2606,7 @@ const styles = StyleSheet.create({
   },
   detailBodyText: {
     fontFamily: detailFontFamily,
-    color: "#000",
+    color: "#50250E",
     fontSize: Math.round(16 * 1.3),
     lineHeight: Math.round(23 * 1.3),
     marginBottom: spacing.sm,
@@ -2504,7 +2614,7 @@ const styles = StyleSheet.create({
   },
   detailHeadingText: {
     fontFamily: detailFontFamilyBold,
-    color: "#000",
+    color: "#50250E",
     fontSize: Math.round(17 * 1.3),
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
@@ -2512,7 +2622,7 @@ const styles = StyleSheet.create({
   },
   detailBulletText: {
     fontFamily: detailFontFamily,
-    color: "#000",
+    color: "#50250E",
     fontSize: Math.round(16 * 1.3),
     lineHeight: Math.round(23 * 1.3),
     marginBottom: spacing.xs,
@@ -2580,6 +2690,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0.3,
   },
+  modalKeyboardAvoid: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(18, 16, 36, 0.72)",
@@ -2594,6 +2707,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: spacing.lg,
   },
+  journalComposeOverlay: {
+    paddingHorizontal: 0,
+  },
   modalCard: {
     width: "100%",
     maxWidth: 440,
@@ -2607,6 +2723,39 @@ const styles = StyleSheet.create({
   journalCard: {
     backgroundColor: "#C08B8A",
     borderColor: "rgba(66, 34, 36, 0.35)",
+  },
+  journalComposeCard: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    padding: 0,
+    borderRadius: 0,
+    overflow: "visible",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
+  journalComposeBg: {
+    width: "100%",
+    alignSelf: "center",
+    minHeight: 700,
+    paddingTop: spacing.xl + spacing.sm,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    justifyContent: "flex-start",
+  },
+  journalComposeContent: {
+    alignSelf: "center",
+    marginTop: "7.5%",
+    alignItems: "center",
+    marginLeft: "-9%",
+  },
+  journalComposeBgImage: {
+    resizeMode: "stretch",
   },
   modalHeader: {
     flexDirection: "row",
@@ -2633,9 +2782,13 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
   },
   journalSubtitle: {
-    color: "rgba(42, 21, 23, 0.75)",
-    fontSize: 42,
+    color: "rgba(72, 38, 15, 0.84)",
+    width: "100%",
+    fontSize: 34,
+    lineHeight: 38,
     fontWeight: "700",
+    textAlign: "center",
+    marginBottom: spacing.sm,
   },
   modalList: {
     maxHeight: 320,
@@ -2711,7 +2864,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   journalDetailBackTitle: {
-    color: "#000",
+    color: "#50250E",
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
@@ -2724,7 +2877,7 @@ const styles = StyleSheet.create({
     maxHeight: 220,
   },
   journalDetailBackText: {
-    color: "#000",
+    color: "#50250E",
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appFontFamily,
@@ -2822,24 +2975,28 @@ const styles = StyleSheet.create({
     color: "#2A1517",
   },
   journalInput: {
+    width: "94%",
+    alignSelf: "center",
+    marginTop: "5%",
     minHeight: 140,
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderColor: "rgba(102, 62, 34, 0.28)",
     padding: spacing.sm,
-    color: "rgba(42, 21, 23, 0.75)",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    color: "rgba(52, 28, 14, 0.86)",
+    backgroundColor: "transparent",
     fontFamily: appFontFamily,
     fontSize: 16,
     textAlign: "center",
   },
   journalPeekPanel: {
-    width: "100%",
-    maxHeight: 180,
+    width: "94%",
+    alignSelf: "center",
+    maxHeight: 280,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: "rgba(66, 34, 36, 0.28)",
-    backgroundColor: "rgba(255, 255, 255, 0.82)",
+    borderWidth: 0,
+    borderColor: "transparent",
+    backgroundColor: "transparent",
     marginBottom: spacing.sm,
   },
   journalPeekScrollArea: {
@@ -2853,11 +3010,11 @@ const styles = StyleSheet.create({
     color: "rgba(42, 21, 23, 0.88)",
     fontSize: 14,
     lineHeight: 20,
-    textAlign: "left",
+    textAlign: "center",
     fontFamily: appFontFamily,
   },
   journalActions: {
-    marginTop: spacing.sm,
+    marginTop: "5%",
     flexDirection: "row",
     gap: spacing.sm,
     justifyContent: "center",

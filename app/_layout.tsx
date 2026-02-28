@@ -24,7 +24,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#11110f",
   },
   headerTitle: {
-    fontFamily: "TudorRose",
+    fontFamily: "MilongaRegular",
     fontWeight: "600",
     fontSize: 18,
   },
