@@ -262,6 +262,15 @@ export default function Index() {
   const journalDetailWidth = journalComposeWidth;
   const journalDetailContentWidth = Math.min(journalDetailWidth * 0.76, 332);
   const journalDetailOffsetX = journalComposeOffsetX;
+  const journalPreviewCardWidth = Math.min(
+    journalDetailContentWidth * 0.42,
+    112,
+  );
+  const journalExpandedCardWidth = Math.min(
+    windowWidth - insets.left - insets.right - spacing.lg * 2,
+    (windowHeight - insets.top - insets.bottom - spacing.xl * 2) / 1.5,
+    420,
+  );
   const [deckState, setDeckState] = useState<DeckState>({
     cards: drawableCards,
     order: [],
@@ -281,7 +290,10 @@ export default function Index() {
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
-  const [isJournalCardFront, setIsJournalCardFront] = useState(true);
+  const [isJournalDetailCardExpanded, setIsJournalDetailCardExpanded] =
+    useState(false);
+  const [isJournalDetailCardFront, setIsJournalDetailCardFront] =
+    useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
     null,
@@ -711,6 +723,8 @@ export default function Index() {
     setIsJournalOpen(false);
     setIsJournalEntriesOpen(false);
     setSelectedJournalEntryId(null);
+    setIsJournalDetailCardExpanded(false);
+    setIsJournalDetailCardFront(true);
     setJournalDraft("");
     setShuffleStartRequest((prev) => prev + 1);
     void storage.setItem(HISTORY_KEY, JSON.stringify([]));
@@ -781,7 +795,8 @@ export default function Index() {
 
   useEffect(() => {
     if (selectedJournalEntryId) {
-      setIsJournalCardFront(true);
+      setIsJournalDetailCardExpanded(false);
+      setIsJournalDetailCardFront(true);
     }
   }, [selectedJournalEntryId]);
 
@@ -2313,64 +2328,46 @@ export default function Index() {
                       >
                         <Text
                           allowFontScaling={false}
-                          style={styles.journalDetailTitle}
-                        >
-                          {selectedJournalCard?.title ?? "Card"}
-                        </Text>
-                        <Text
-                          allowFontScaling={false}
                           style={styles.journalDetailDate}
                         >
                           {formatHistoryDate(selectedJournalEntry.createdAt)}
                         </Text>
+                        <Text
+                          allowFontScaling={false}
+                          style={styles.journalDetailTitle}
+                        >
+                          {selectedJournalCard?.title ?? "Card"}
+                        </Text>
                         <View style={styles.journalFlipWrap}>
-                          <CardFlip
-                            isFront={isJournalCardFront}
-                            onBeforeFlip={() =>
-                              setIsJournalCardFront((prev) => !prev)
-                            }
-                            idle={false}
-                            front={
-                              selectedJournalCard?.image ? (
-                                <Image
-                                  source={selectedJournalCard.image}
-                                  style={styles.cardImage}
-                                />
-                              ) : (
-                                <View style={styles.thumbnailFallback} />
-                              )
-                            }
-                            back={
-                              <ImageBackground
-                                source={
-                                  selectedJournalCard?.detailImage ??
-                                  selectedJournalCard?.image ??
-                                  cardBackImage
-                                }
-                                style={styles.journalDetailBack}
-                                imageStyle={styles.cardImage}
-                              >
-                                <View style={styles.journalDetailBackOverlay}>
-                                  <Text style={styles.journalDetailBackTitle}>
-                                    {selectedJournalCard?.title ?? "Card"}
-                                  </Text>
-                                  <ScrollView
-                                    contentContainerStyle={
-                                      styles.journalDetailBackScroll
-                                    }
-                                    showsVerticalScrollIndicator={false}
-                                  >
-                                    <Text style={styles.journalDetailBackText}>
-                                      {journalDetailText}
-                                    </Text>
-                                  </ScrollView>
-                                </View>
-                              </ImageBackground>
-                            }
-                            style={styles.journalFlipCard}
-                          />
+                          <Pressable
+                            onPress={() => {
+                              setIsJournalDetailCardFront(true);
+                              setIsJournalDetailCardExpanded(true);
+                            }}
+                            style={[
+                              styles.journalCardPreviewButton,
+                              {
+                                width: journalPreviewCardWidth,
+                                height: journalPreviewCardWidth * 1.5,
+                              },
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Expand card"
+                          >
+                            {selectedJournalCard?.image ? (
+                              <Image
+                                source={selectedJournalCard.image}
+                                style={styles.journalCardPreviewImage}
+                              />
+                            ) : (
+                              <View style={styles.thumbnailFallback} />
+                            )}
+                          </Pressable>
                         </View>
                         <View style={styles.journalReflectionWrap}>
+                          <Text style={styles.journalReflectionTitle}>
+                            Your Reflection
+                          </Text>
                           <ScrollView
                             contentContainerStyle={
                               styles.journalReflectionScroll
@@ -2387,10 +2384,15 @@ export default function Index() {
                           label="Close"
                           onPress={() => {
                             setSelectedJournalEntryId(null);
+                            setIsJournalDetailCardExpanded(false);
+                            setIsJournalDetailCardFront(true);
                             setIsJournalEntriesOpen(true);
                           }}
                           variant="secondary"
-                          style={styles.journalCloseButton}
+                          style={[
+                            styles.journalCloseButton,
+                            styles.journalDetailCloseButtonOffset,
+                          ]}
                           labelStyle={styles.journalCloseLabel}
                         />
                       </View>
@@ -2400,14 +2402,92 @@ export default function Index() {
                       label="Close"
                       onPress={() => {
                         setSelectedJournalEntryId(null);
+                        setIsJournalDetailCardExpanded(false);
+                        setIsJournalDetailCardFront(true);
                         setIsJournalEntriesOpen(true);
                       }}
                       variant="secondary"
-                      style={styles.journalCloseButton}
+                      style={[
+                        styles.journalCloseButton,
+                        styles.journalDetailCloseButtonOffset,
+                      ]}
                       labelStyle={styles.journalCloseLabel}
                     />
                   )}
                 </View>
+                {isJournalDetailCardExpanded ? (
+                  <View style={styles.journalCardExpandedOverlay}>
+                    <View style={styles.journalCardExpandedBackdrop} />
+                    <View style={styles.journalCardExpandedPanel}>
+                      <CardFlip
+                        isFront={isJournalDetailCardFront}
+                        onBeforeFlip={() =>
+                          setIsJournalDetailCardFront((prev) => !prev)
+                        }
+                        disabled={!isJournalDetailCardFront}
+                        idle={false}
+                        front={
+                          selectedJournalCard?.image ? (
+                            <Image
+                              source={selectedJournalCard.image}
+                              style={styles.journalCardExpandedImage}
+                            />
+                          ) : (
+                            <View style={styles.thumbnailFallback} />
+                          )
+                        }
+                        back={
+                          <ImageBackground
+                            source={
+                              selectedJournalCard?.detailImage ??
+                              selectedJournalCard?.image ??
+                              cardBackImage
+                            }
+                            style={styles.journalCardExpandedBack}
+                            imageStyle={styles.cardImage}
+                          >
+                            <View style={styles.journalCardExpandedBackOverlay}>
+                              <Text style={styles.journalCardExpandedBackTitle}>
+                                {selectedJournalCard?.title ?? "Card"}
+                              </Text>
+                              <ScrollView
+                                style={styles.journalCardExpandedBackScrollArea}
+                                contentContainerStyle={
+                                  styles.journalCardExpandedBackScroll
+                                }
+                                showsVerticalScrollIndicator={false}
+                                nestedScrollEnabled
+                              >
+                                <Text
+                                  style={styles.journalCardExpandedBackText}
+                                >
+                                  {journalDetailText}
+                                </Text>
+                              </ScrollView>
+                            </View>
+                          </ImageBackground>
+                        }
+                        style={[
+                          styles.journalCardExpandedCard,
+                          {
+                            width: journalExpandedCardWidth,
+                            height: journalExpandedCardWidth * 1.5,
+                          },
+                        ]}
+                      />
+                      <ThemedButton
+                        label="Exit"
+                        onPress={() => {
+                          setIsJournalDetailCardExpanded(false);
+                          setIsJournalDetailCardFront(true);
+                        }}
+                        variant="secondary"
+                        style={styles.journalCloseButton}
+                        labelStyle={styles.journalCloseLabel}
+                      />
+                    </View>
+                  </View>
+                ) : null}
               </View>
             </Modal>
 
@@ -2503,11 +2583,18 @@ export default function Index() {
                             </Text>
                           </ScrollView>
                         </View>
+                        <Text
+                          allowFontScaling={false}
+                          style={styles.journalReflectionTitle}
+                        >
+                          Your Reflection
+                        </Text>
                         <TextInput
                           value={journalDraft}
                           onChangeText={setJournalDraft}
                           placeholder="Write your thoughts..."
                           placeholderTextColor="rgba(17, 16, 15, 0.45)"
+                          underlineColorAndroid="transparent"
                           multiline
                           textAlignVertical="top"
                           allowFontScaling={false}
@@ -3119,6 +3206,7 @@ const styles = StyleSheet.create({
   journalDetailContent: {
     alignSelf: "center",
     alignItems: "center",
+    height: "100%",
     paddingTop: "16%",
     paddingBottom: spacing.sm,
     marginLeft: "-9%",
@@ -3163,9 +3251,11 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
   },
   journalDetailDate: {
-    color: "rgba(72, 38, 15, 0.7)",
+    color: "rgba(72, 38, 15, 0.88)",
+    fontSize: 17,
+    fontWeight: "800",
     textAlign: "center",
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
     fontFamily: appFontFamily,
   },
   modalSubtitle: {
@@ -3181,6 +3271,7 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     fontWeight: "700",
     textAlign: "center",
+    marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
   modalList: {
@@ -3242,21 +3333,49 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.sm,
   },
-  journalFlipCard: {
-    width: 165,
-    height: 248,
+  journalCardPreviewButton: {
+    borderRadius: radii.lg,
+    overflow: "hidden",
   },
-  journalDetailBack: {
+  journalCardPreviewImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  journalCardExpandedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  journalCardExpandedBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 9, 8, 0.55)",
+  },
+  journalCardExpandedPanel: {
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  journalCardExpandedCard: {
+    ...shadow.soft,
+  },
+  journalCardExpandedImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  journalCardExpandedBack: {
     flex: 1,
   },
-  journalDetailBackOverlay: {
+  journalCardExpandedBackOverlay: {
     flex: 1,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
     justifyContent: "flex-start",
     backgroundColor: "transparent",
   },
-  journalDetailBackTitle: {
+  journalCardExpandedBackTitle: {
     color: "#50250E",
     fontSize: 16,
     fontWeight: "700",
@@ -3264,12 +3383,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     fontFamily: appFontFamily,
   },
-  journalDetailBackScroll: {
+  journalCardExpandedBackScrollArea: {
+    flex: 1,
+  },
+  journalCardExpandedBackScroll: {
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
-    maxHeight: 220,
   },
-  journalDetailBackText: {
+  journalCardExpandedBackText: {
     color: "#50250E",
     fontSize: 13,
     lineHeight: 18,
@@ -3287,9 +3408,11 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    flex: 1,
   },
   journalReflectionScrollArea: {
-    maxHeight: 132,
+    flex: 1,
     width: "100%",
   },
   journalReflectionScroll: {
@@ -3299,11 +3422,12 @@ const styles = StyleSheet.create({
   },
   journalReflectionTitle: {
     color: "rgba(72, 38, 15, 0.88)",
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "800",
     marginBottom: spacing.xs,
     fontFamily: appFontFamily,
     textAlign: "center",
+    textDecorationLine: "underline",
   },
   historyGrid: {
     paddingBottom: spacing.sm,
@@ -3369,6 +3493,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  journalDetailCloseButtonOffset: {
+    marginTop: "auto",
+  },
   journalCloseLabel: {
     color: "#50250E",
     letterSpacing: 0.3,
@@ -3378,10 +3505,11 @@ const styles = StyleSheet.create({
     width: "94%",
     alignSelf: "center",
     marginTop: "5%",
-    minHeight: 140,
+    minHeight: 300,
+    height: 300,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: "rgba(102, 62, 34, 0.28)",
+    borderWidth: 0,
+    borderColor: "transparent",
     padding: spacing.sm,
     color: "rgba(52, 28, 14, 0.86)",
     backgroundColor: "transparent",
@@ -3414,10 +3542,11 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
   },
   journalActions: {
-    marginTop: "5%",
+    marginTop: 0,
     flexDirection: "row",
     gap: spacing.sm,
     justifyContent: "center",
+    transform: [{ translateY: -22 }],
   },
   clearButton: {
     marginTop: spacing.sm,
