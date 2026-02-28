@@ -18,6 +18,7 @@ import {
   InteractionManager,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   PixelRatio,
   Platform,
   Pressable,
@@ -108,6 +109,8 @@ type FlipPair = {
   back: ReactNode;
   front: ReactNode;
 };
+
+type DrawMode = "single" | "triple";
 
 const storage = {
   getItem: async (key: string) => {
@@ -286,6 +289,10 @@ export default function Index() {
   const [isShuffling, setIsShuffling] = useState(false);
   const [shuffleStartRequest, setShuffleStartRequest] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
+  const [drawMode, setDrawMode] = useState<DrawMode>("single");
+  const [tripleCards, setTripleCards] = useState<Card[]>([]);
+  const [activeTripleCardIndex, setActiveTripleCardIndex] = useState(0);
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [autoFlipNext, setAutoFlipNext] = useState(false);
@@ -694,6 +701,9 @@ export default function Index() {
     setSelectedHistoryId(null);
     setIsHistoryOpen(false);
     setSelectedSlot(null);
+    setSelectedSlots([]);
+    setTripleCards([]);
+    setActiveTripleCardIndex(0);
     setIsConfirmOpen(false);
     setAutoFlipNext(false);
     setIsShuffling(false);
@@ -717,6 +727,33 @@ export default function Index() {
         recordHistory(result.card);
         persistLastCard(result.card);
         return result.state;
+      });
+      setIsFront(!autoFlip);
+    },
+    [persistLastCard, recordHistory],
+  );
+
+  const drawTripleCards = useCallback(
+    (autoFlip = false) => {
+      setAutoFlipNext(autoFlip);
+      setDeckState((prev) => {
+        let nextState = prev;
+        const drawnCards: Card[] = [];
+        for (let i = 0; i < 3; i += 1) {
+          const result = drawNext(nextState);
+          nextState = result.state;
+          drawnCards.push(result.card);
+        }
+        setTripleCards(drawnCards);
+        setActiveTripleCardIndex(0);
+        setCurrentCard(drawnCards[0] ?? null);
+        drawnCards.forEach((card) => {
+          recordHistory(card);
+        });
+        if (drawnCards[0]) {
+          persistLastCard(drawnCards[0]);
+        }
+        return nextState;
       });
       setIsFront(!autoFlip);
     },
@@ -876,7 +913,12 @@ export default function Index() {
     setIsFront(false);
     setCurrentCard(null);
     setSelectedSlot(null);
-  }, []);
+    setSelectedSlots([]);
+    setTripleCards([]);
+    setActiveTripleCardIndex(0);
+    setIsConfirmOpen(false);
+    selectionAnim.setValue(0);
+  }, [selectionAnim]);
 
   const handleShuffleDone = useCallback(() => {
     shuffleDeck();
@@ -1229,7 +1271,12 @@ export default function Index() {
         selectionAnim.setValue(0);
         setIsConfirmOpen(false);
         setSelectedSlot(null);
-        drawNextCard(true);
+        setSelectedSlots([]);
+        if (drawMode === "triple") {
+          drawTripleCards(true);
+        } else {
+          drawNextCard(true);
+        }
         return;
       }
       Animated.timing(selectionAnim, {
@@ -1240,14 +1287,46 @@ export default function Index() {
       }).start(() => {
         setIsConfirmOpen(false);
         setSelectedSlot(null);
+        setSelectedSlots([]);
       });
     },
-    [drawNextCard, selectionAnim],
+    [drawMode, drawNextCard, drawTripleCards, selectionAnim],
   );
 
   const handleSelectFromFan = useCallback(
     (slotIndex: number) => {
       if (isShuffling) {
+        return;
+      }
+      if (drawMode === "triple") {
+        const alreadySelected = selectedSlots.includes(slotIndex);
+        if (isConfirmOpen && alreadySelected && selectedSlots.length === 3) {
+          handleConfirmSelection(true);
+          return;
+        }
+        if (alreadySelected) {
+          const next = selectedSlots.filter((slot) => slot !== slotIndex);
+          setSelectedSlots(next);
+          if (next.length < 3) {
+            selectionAnim.setValue(0);
+            setIsConfirmOpen(false);
+          }
+          return;
+        }
+        if (selectedSlots.length >= 3) {
+          return;
+        }
+        const next = [...selectedSlots, slotIndex];
+        setSelectedSlots(next);
+        if (next.length === 3) {
+          setIsConfirmOpen(true);
+          Animated.timing(selectionAnim, {
+            toValue: 1,
+            duration: 350,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start();
+        }
         return;
       }
       if (isConfirmOpen && selectedSlot === slotIndex) {
@@ -1265,11 +1344,79 @@ export default function Index() {
     },
     [
       handleConfirmSelection,
+      drawMode,
       isConfirmOpen,
       isShuffling,
       selectionAnim,
       selectedSlot,
+      selectedSlots,
     ],
+  );
+
+  const canSwitchDrawMode =
+    !currentCard &&
+    selectedSlot === null &&
+    selectedSlots.length === 0 &&
+    !isConfirmOpen &&
+    !isShuffling;
+
+  const toggleDrawMode = useCallback(() => {
+    if (!canSwitchDrawMode) {
+      return;
+    }
+    selectionAnim.setValue(0);
+    setIsConfirmOpen(false);
+    setSelectedSlot(null);
+    setSelectedSlots([]);
+    setTripleCards([]);
+    setActiveTripleCardIndex(0);
+    setDrawMode((prev) => (prev === "single" ? "triple" : "single"));
+  }, [canSwitchDrawMode, selectionAnim]);
+
+  const canSwipeTripleCards = tripleCards.length === 3 && currentCard !== null;
+  const handleTripleSwipe = useCallback(
+    (direction: "next" | "prev") => {
+      if (!canSwipeTripleCards || isCardTransitioningRef.current) {
+        return;
+      }
+      const delta = direction === "next" ? 1 : -1;
+      const nextIndex =
+        (activeTripleCardIndex + delta + tripleCards.length) %
+        tripleCards.length;
+      const nextCard = tripleCards[nextIndex];
+      if (!nextCard) {
+        return;
+      }
+      setActiveTripleCardIndex(nextIndex);
+      setAutoFlipNext(true);
+      setCurrentCard(nextCard);
+      setIsFront(false);
+      persistLastCard(nextCard);
+    },
+    [activeTripleCardIndex, canSwipeTripleCards, persistLastCard, tripleCards],
+  );
+
+  const swipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          canSwipeTripleCards &&
+          Math.abs(gestureState.dx) > 12 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderRelease: (_, gestureState) => {
+          if (!canSwipeTripleCards) {
+            return;
+          }
+          if (gestureState.dx <= -36 || gestureState.vx <= -0.35) {
+            handleTripleSwipe("next");
+            return;
+          }
+          if (gestureState.dx >= 36 || gestureState.vx >= 0.35) {
+            handleTripleSwipe("prev");
+          }
+        },
+      }),
+    [canSwipeTripleCards, handleTripleSwipe],
   );
 
   const toggleFavorite = useCallback(() => {
@@ -1716,12 +1863,19 @@ export default function Index() {
                     },
                   ]}
                 >
-                  {isConfirmOpen ? "Tap again to confirm" : "Tap a card"}
+                  {isConfirmOpen
+                    ? "Tap again to confirm"
+                    : drawMode === "triple"
+                      ? "Tap 3 cards"
+                      : "Tap a card"}
                 </Animated.Text>
               </View>
             ) : null}
             {currentCard ? (
-              <View style={[styles.cardWrapper, { width: cardWidth }]}>
+              <View
+                style={[styles.cardWrapper, { width: cardWidth }]}
+                {...(canSwipeTripleCards ? swipeResponder.panHandlers : {})}
+              >
                 <CardFlip
                   key={`${currentCard.id}:${isDetailMode ? "detail" : "front"}:${flipPair?.front ? "hasFront" : "noFront"}`}
                   onBeforeFlip={handleCardTap}
@@ -1814,6 +1968,14 @@ export default function Index() {
                     </Animated.Text>
                   </View>
                 ) : null}
+                {canSwipeTripleCards ? (
+                  <View style={styles.swipeHintWrap}>
+                    <Text style={styles.swipeHint}>
+                      {`Card ${activeTripleCardIndex + 1} of 3`}
+                    </Text>
+                    <Text style={styles.swipeHintSub}>Swipe left/right</Text>
+                  </View>
+                ) : null}
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
                     <ThemedButton
@@ -1890,7 +2052,10 @@ export default function Index() {
                     const stackRot = centerOffset * 0.6;
                     const depthScale = index % 2 === 0 ? -0.008 : 0.01;
                     const isSwirl = swirlIndices.includes(index);
-                    const isSelected = selectedSlot === index;
+                    const isSelected =
+                      drawMode === "triple"
+                        ? selectedSlots.includes(index)
+                        : selectedSlot === index;
                     const pullOutY = Animated.multiply(
                       selectionAnim,
                       fanCardHeight * 0.18,
@@ -1985,7 +2150,12 @@ export default function Index() {
                               { rotate: rotateZ },
                               { rotate: swirlRotate },
                               { scale },
-                              ...(isSelected ? [{ translateY: pullOutY }] : []),
+                              ...(drawMode === "single" && isSelected
+                                ? [{ translateY: pullOutY }]
+                                : []),
+                              ...(drawMode === "triple" && isSelected
+                                ? [{ translateY: fanCardHeight * 0.14 }]
+                                : []),
                             ],
                           },
                         ]}
@@ -2399,6 +2569,50 @@ export default function Index() {
           <Image source={journalToggleIcon} style={styles.journalToggleIcon} />
         </Pressable>
       ) : null}
+      {!currentCard ? (
+        <Pressable
+          onPress={toggleDrawMode}
+          disabled={!canSwitchDrawMode}
+          accessibilityRole="button"
+          accessibilityLabel={
+            drawMode === "triple"
+              ? "Switch to single-card draw mode"
+              : "Switch to three-card draw mode"
+          }
+          style={({ pressed }) => [
+            styles.drawModeToggle,
+            {
+              right: spacing.md + insets.right,
+              bottom: spacing.xs + insets.bottom,
+            },
+            drawMode === "triple" ? styles.drawModeToggleActive : null,
+            !canSwitchDrawMode ? styles.drawModeToggleLocked : null,
+            pressed && canSwitchDrawMode ? styles.audioTogglePressed : null,
+          ]}
+        >
+          <View style={styles.drawModeIconWrap}>
+            {drawMode === "single" ? (
+              [0, 1, 2].map((layer) => (
+                <Image
+                  key={`draw-mode-card-${layer}`}
+                  source={cardBackImage}
+                  style={[
+                    styles.drawModeIconCard,
+                    layer === 0 ? styles.drawModeCardLeft : null,
+                    layer === 1 ? styles.drawModeCardCenter : null,
+                    layer === 2 ? styles.drawModeCardRight : null,
+                  ]}
+                />
+              ))
+            ) : (
+              <Image
+                source={cardBackImage}
+                style={[styles.drawModeIconCard, styles.drawModeSingleCard]}
+              />
+            )}
+          </View>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -2435,6 +2649,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 40,
   },
+  drawModeToggle: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 45,
+  },
+  drawModeToggleActive: {
+    opacity: 1,
+  },
+  drawModeToggleLocked: {
+    opacity: 0.5,
+  },
+  drawModeIconWrap: {
+    width: 44,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    transform: [{ scale: 1.2 }],
+  },
+  drawModeIconCard: {
+    position: "absolute",
+    width: 16,
+    height: 24,
+    borderRadius: 2,
+    resizeMode: "cover",
+  },
+  drawModeCardLeft: {
+    transform: [{ translateX: -9 }, { rotate: "-18deg" }],
+  },
+  drawModeCardCenter: {
+    transform: [{ translateY: -2 }],
+  },
+  drawModeCardRight: {
+    transform: [{ translateX: 9 }, { rotate: "18deg" }],
+  },
+  drawModeSingleCard: {
+    width: 18,
+    height: 27,
+    transform: [{ translateY: -1 }],
+  },
   audioTogglePressed: {
     transform: [{ scale: 0.96 }],
     opacity: 0.88,
@@ -2470,6 +2727,29 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
     alignItems: "center",
+  },
+  swipeHint: {
+    color: "rgba(247, 239, 218, 0.9)",
+    fontSize: typography.body,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  swipeHintWrap: {
+    marginTop: spacing.sm,
+    alignItems: "center",
+  },
+  swipeHintSub: {
+    marginTop: 2,
+    color: "rgba(247, 239, 218, 0.9)",
+    fontSize: typography.body * 0.9,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   title: {
     color: colors.accentLavender,
