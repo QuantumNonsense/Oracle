@@ -246,6 +246,8 @@ export default function Index() {
   const bg = require("../assets/backgrounds/mushroom-field.png");
   const shuffleImage = require("../assets/Shuffle.png");
   const scrollImage = require("../assets/Scroll.png");
+  const musicToggleIcon = require("../assets/music.png");
+  const journalToggleIcon = require("../assets/journal.png");
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const journalComposeWidth = Math.min(
@@ -2030,13 +2032,6 @@ export default function Index() {
                       resizeMode="contain"
                     />
                   </Pressable>
-                  <ThemedButton
-                    label="Journal Entries"
-                    onPress={() => setIsJournalEntriesOpen(true)}
-                    variant="secondary"
-                    style={styles.journalEntriesButton}
-                    labelStyle={styles.journalEntriesLabel}
-                  />
                 </>
               ) : null}
             </View>
@@ -2119,7 +2114,9 @@ export default function Index() {
               visible={selectedJournalEntryId !== null}
               animationType="fade"
             >
-              <View style={[styles.journalOverlay, styles.journalDetailOverlay]}>
+              <View
+                style={[styles.journalOverlay, styles.journalDetailOverlay]}
+              >
                 <View
                   style={[
                     styles.modalCard,
@@ -2144,10 +2141,16 @@ export default function Index() {
                           { width: journalDetailContentWidth },
                         ]}
                       >
-                        <Text allowFontScaling={false} style={styles.journalDetailTitle}>
+                        <Text
+                          allowFontScaling={false}
+                          style={styles.journalDetailTitle}
+                        >
                           {selectedJournalCard?.title ?? "Card"}
                         </Text>
-                        <Text allowFontScaling={false} style={styles.journalDetailDate}>
+                        <Text
+                          allowFontScaling={false}
+                          style={styles.journalDetailDate}
+                        >
                           {formatHistoryDate(selectedJournalEntry.createdAt)}
                         </Text>
                         <View style={styles.journalFlipWrap}>
@@ -2199,7 +2202,9 @@ export default function Index() {
                         </View>
                         <View style={styles.journalReflectionWrap}>
                           <ScrollView
-                            contentContainerStyle={styles.journalReflectionScroll}
+                            contentContainerStyle={
+                              styles.journalReflectionScroll
+                            }
                             style={styles.journalReflectionScrollArea}
                             showsVerticalScrollIndicator={false}
                           >
@@ -2279,7 +2284,9 @@ export default function Index() {
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
                 keyboardVerticalOffset={insets.top + spacing.md}
               >
-                <View style={[styles.modalOverlay, styles.journalComposeOverlay]}>
+                <View
+                  style={[styles.modalOverlay, styles.journalComposeOverlay]}
+                >
                   <View
                     style={[
                       styles.modalCard,
@@ -2367,10 +2374,31 @@ export default function Index() {
           pressed ? styles.audioTogglePressed : null,
         ]}
       >
-        <Text style={styles.audioToggleIcon}>
-          {isAudioEnabled ? "🔊" : "🔇"}
-        </Text>
+        <Image
+          source={musicToggleIcon}
+          style={[
+            styles.audioToggleIcon,
+            !isAudioEnabled ? styles.audioToggleIconMuted : null,
+          ]}
+        />
       </Pressable>
+      {!currentCard ? (
+        <Pressable
+          onPress={() => setIsJournalEntriesOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open journal entries"
+          style={({ pressed }) => [
+            styles.journalEntriesToggle,
+            {
+              right: spacing.md + insets.right + windowWidth * 0.4,
+              bottom: spacing.xs + insets.bottom + windowHeight * 0.02,
+            },
+            pressed ? styles.audioTogglePressed : null,
+          ]}
+        >
+          <Image source={journalToggleIcon} style={styles.journalToggleIcon} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -2395,12 +2423,16 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 48,
     height: 48,
-    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(18, 16, 36, 0.66)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    zIndex: 40,
+  },
+  journalEntriesToggle: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 40,
   },
   audioTogglePressed: {
@@ -2408,7 +2440,17 @@ const styles = StyleSheet.create({
     opacity: 0.88,
   },
   audioToggleIcon: {
-    fontSize: 21,
+    width: 110,
+    height: 110,
+    resizeMode: "contain",
+  },
+  audioToggleIconMuted: {
+    opacity: 0.55,
+  },
+  journalToggleIcon: {
+    width: 140,
+    height: 140,
+    resizeMode: "contain",
   },
   screen: {
     backgroundColor: "transparent",
@@ -2712,16 +2754,6 @@ const styles = StyleSheet.create({
   shuffleButtonPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.92,
-  },
-  journalEntriesButton: {
-    alignSelf: "center",
-    marginTop: spacing.sm,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.xl,
-  },
-  journalEntriesLabel: {
-    fontSize: 15,
-    letterSpacing: 0.3,
   },
   modalKeyboardAvoid: {
     flex: 1,
