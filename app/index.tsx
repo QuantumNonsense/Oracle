@@ -71,6 +71,7 @@ const IOS_DETAIL_OVERLAY_HOLD_MS = 180;
 const DETAIL_TEXT_BLANK_MS = 200;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
+const FAN_SELECTION_ANIMATION_MS = 350;
 
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
@@ -313,6 +314,9 @@ export default function Index() {
   const [fanLayout, setFanLayout] = useState<LayoutFrame | null>(null);
   const lastLayoutWidthRef = useRef<number | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
+  const tripleSelectionAnimsRef = useRef<Animated.Value[]>(
+    Array.from({ length: 6 }, () => new Animated.Value(0)),
+  );
   const fanCollapse = useRef(new Animated.Value(0)).current;
   const shuffleShake = useRef(new Animated.Value(0)).current;
   const shuffleSwirl = useRef(new Animated.Value(0)).current;
@@ -356,10 +360,9 @@ export default function Index() {
       return null;
     }
     return (
-      <ImageBackground
+      <Image
         source={currentCard.detailImage}
         style={styles.cardImage}
-        imageStyle={styles.cardImage}
       />
     );
   }, [currentCard]);
@@ -368,6 +371,35 @@ export default function Index() {
     () => buildDetailLines(currentCard),
     [currentCard],
   );
+  const getTripleSelectionAnim = useCallback((slotIndex: number) => {
+    const values = tripleSelectionAnimsRef.current;
+    while (values.length <= slotIndex) {
+      values.push(new Animated.Value(0));
+    }
+    return values[slotIndex];
+  }, []);
+  const animateTripleSelectionSlot = useCallback(
+    (slotIndex: number, toValue: 0 | 1) => {
+      const value = getTripleSelectionAnim(slotIndex);
+      value.stopAnimation();
+      Animated.timing(value, {
+        toValue,
+        duration: FAN_SELECTION_ANIMATION_MS,
+        easing:
+          toValue === 1
+            ? Easing.out(Easing.cubic)
+            : Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    },
+    [getTripleSelectionAnim],
+  );
+  const resetTripleSelectionAnims = useCallback(() => {
+    tripleSelectionAnimsRef.current.forEach((value) => {
+      value.stopAnimation();
+      value.setValue(0);
+    });
+  }, []);
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
@@ -451,12 +483,6 @@ export default function Index() {
         {detailContentNode}
       </ImageBackground>
     );
-  }, [currentCard, detailContentNode]);
-  const detailOverlayNode = useMemo(() => {
-    if (!currentCard?.detailImage) {
-      return null;
-    }
-    return detailContentNode;
   }, [currentCard, detailContentNode]);
 
   useEffect(() => {
@@ -702,6 +728,7 @@ export default function Index() {
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
     selectionAnim.setValue(0);
+    resetTripleSelectionAnims();
     fanCollapse.setValue(0);
     setDeckState({ cards: drawableCards, order: [], index: 0 });
     setCurrentCard(null);
@@ -730,7 +757,14 @@ export default function Index() {
     void storage.setItem(HISTORY_KEY, JSON.stringify([]));
     void storage.setItem(FAVORITES_KEY, JSON.stringify({}));
     void storage.setItem(LAST_CARD_KEY, "");
-  }, [fanCollapse, selectionAnim, shuffleShake, shuffleSwirl, shuffleAnimRef]);
+  }, [
+    fanCollapse,
+    resetTripleSelectionAnims,
+    selectionAnim,
+    shuffleShake,
+    shuffleSwirl,
+    shuffleAnimRef,
+  ]);
 
   const drawNextCard = useCallback(
     (autoFlip = false) => {
@@ -933,7 +967,8 @@ export default function Index() {
     setActiveTripleCardIndex(0);
     setIsConfirmOpen(false);
     selectionAnim.setValue(0);
-  }, [selectionAnim]);
+    resetTripleSelectionAnims();
+  }, [resetTripleSelectionAnims, selectionAnim]);
 
   const handleShuffleDone = useCallback(() => {
     shuffleDeck();
@@ -1284,6 +1319,7 @@ export default function Index() {
     (confirmed: boolean) => {
       if (confirmed) {
         selectionAnim.setValue(0);
+        resetTripleSelectionAnims();
         setIsConfirmOpen(false);
         setSelectedSlot(null);
         setSelectedSlots([]);
@@ -1294,9 +1330,10 @@ export default function Index() {
         }
         return;
       }
+      selectedSlots.forEach((slot) => animateTripleSelectionSlot(slot, 0));
       Animated.timing(selectionAnim, {
         toValue: 0,
-        duration: 350,
+        duration: FAN_SELECTION_ANIMATION_MS,
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
@@ -1305,7 +1342,15 @@ export default function Index() {
         setSelectedSlots([]);
       });
     },
-    [drawMode, drawNextCard, drawTripleCards, selectionAnim],
+    [
+      animateTripleSelectionSlot,
+      drawMode,
+      drawNextCard,
+      drawTripleCards,
+      resetTripleSelectionAnims,
+      selectedSlots,
+      selectionAnim,
+    ],
   );
 
   const handleSelectFromFan = useCallback(
@@ -1320,6 +1365,7 @@ export default function Index() {
           return;
         }
         if (alreadySelected) {
+          animateTripleSelectionSlot(slotIndex, 0);
           const next = selectedSlots.filter((slot) => slot !== slotIndex);
           setSelectedSlots(next);
           if (next.length < 3) {
@@ -1331,13 +1377,14 @@ export default function Index() {
         if (selectedSlots.length >= 3) {
           return;
         }
+        animateTripleSelectionSlot(slotIndex, 1);
         const next = [...selectedSlots, slotIndex];
         setSelectedSlots(next);
         if (next.length === 3) {
           setIsConfirmOpen(true);
           Animated.timing(selectionAnim, {
             toValue: 1,
-            duration: 350,
+            duration: FAN_SELECTION_ANIMATION_MS,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }).start();
@@ -1348,17 +1395,41 @@ export default function Index() {
         handleConfirmSelection(true);
         return;
       }
+      if (selectedSlot !== null && selectedSlot !== slotIndex) {
+        selectionAnim.stopAnimation();
+        Animated.timing(selectionAnim, {
+          toValue: 0,
+          duration: FAN_SELECTION_ANIMATION_MS,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished) {
+            return;
+          }
+          setSelectedSlot(slotIndex);
+          setIsConfirmOpen(true);
+          selectionAnim.setValue(0);
+          Animated.timing(selectionAnim, {
+            toValue: 1,
+            duration: FAN_SELECTION_ANIMATION_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start();
+        });
+        return;
+      }
       setSelectedSlot(slotIndex);
       setIsConfirmOpen(true);
       Animated.timing(selectionAnim, {
         toValue: 1,
-        duration: 350,
+        duration: FAN_SELECTION_ANIMATION_MS,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     },
     [
       handleConfirmSelection,
+      animateTripleSelectionSlot,
       drawMode,
       isConfirmOpen,
       isShuffling,
@@ -1380,13 +1451,14 @@ export default function Index() {
       return;
     }
     selectionAnim.setValue(0);
+    resetTripleSelectionAnims();
     setIsConfirmOpen(false);
     setSelectedSlot(null);
     setSelectedSlots([]);
     setTripleCards([]);
     setActiveTripleCardIndex(0);
     setDrawMode((prev) => (prev === "single" ? "triple" : "single"));
-  }, [canSwitchDrawMode, selectionAnim]);
+  }, [canSwitchDrawMode, resetTripleSelectionAnims, selectionAnim]);
 
   const canSwipeTripleCards = tripleCards.length === 3 && currentCard !== null;
   const handleTripleSwipe = useCallback(
@@ -1994,7 +2066,7 @@ export default function Index() {
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
                     <ThemedButton
-                      label="Reset"
+                      label="Menu"
                       onPress={resetApp}
                       variant="ghost"
                       style={styles.cardActionButton}
@@ -2011,31 +2083,14 @@ export default function Index() {
                 ) : null}
                 {showIosDetachedDetailOverlay ? (
                   <View
-                    pointerEvents="none"
-                    style={[
-                      styles.detailOverlayFloat,
-                      styles.detailOverlayBgLayer,
-                      { height: cardWidth * 1.5 },
-                    ]}
-                  >
-                    {currentCard?.detailImage ? (
-                      <Image
-                        source={currentCard.detailImage}
-                        style={styles.cardImage}
-                      />
-                    ) : null}
-                  </View>
-                ) : null}
-                {showIosDetachedDetailOverlay ? (
-                  <View
                     pointerEvents="box-none"
                     style={[
                       styles.detailOverlayFloat,
-                      styles.detailOverlayTextLayer,
+                      styles.detailOverlayLayer,
                       { height: cardWidth * 1.5 },
                     ]}
                   >
-                    {detailOverlayNode}
+                    {detailFullNode}
                   </View>
                 ) : null}
                 {currentCard.detailImage && !isDetailMode && isFront
@@ -2074,6 +2129,10 @@ export default function Index() {
                     const pullOutY = Animated.multiply(
                       selectionAnim,
                       fanCardHeight * 0.18,
+                    );
+                    const triplePullOutY = Animated.multiply(
+                      getTripleSelectionAnim(index),
+                      fanCardHeight * 0.14,
                     );
                     const translateX = fanCollapse.interpolate({
                       inputRange: [0, 1],
@@ -2168,8 +2227,8 @@ export default function Index() {
                               ...(drawMode === "single" && isSelected
                                 ? [{ translateY: pullOutY }]
                                 : []),
-                              ...(drawMode === "triple" && isSelected
-                                ? [{ translateY: fanCardHeight * 0.14 }]
+                              ...(drawMode === "triple"
+                                ? [{ translateY: triplePullOutY }]
                                 : []),
                             ],
                           },
@@ -3000,10 +3059,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     overflow: "hidden",
   },
-  detailOverlayBgLayer: {
-    zIndex: 3,
-  },
-  detailOverlayTextLayer: {
+  detailOverlayLayer: {
     zIndex: 4,
   },
   detailScroll: {
