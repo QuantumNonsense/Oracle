@@ -201,6 +201,27 @@ const buildDetailLines = (card: Card | null) => {
   return lines;
 };
 
+const buildCardDetailText = (card: Card | null) => {
+  if (!card) {
+    return "No description available.";
+  }
+  const lines = buildDetailLines(card).slice(1);
+  if (lines.length === 0) {
+    return "No description available.";
+  }
+  return lines
+    .map((line) => {
+      if (line.type === "heading") {
+        return line.text;
+      }
+      if (line.type === "bullet") {
+        return `• ${line.text.replace(/^~/, "")}`;
+      }
+      return line.text;
+    })
+    .join("\n\n");
+};
+
 const parseStoredJournals = (raw: string): JournalEntry[] => {
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -306,6 +327,13 @@ export default function Index() {
   const [drawMode, setDrawMode] = useState<DrawMode>("single");
   const [tripleCards, setTripleCards] = useState<Card[]>([]);
   const [activeTripleCardIndex, setActiveTripleCardIndex] = useState(0);
+  const [expandedTripleCardIndex, setExpandedTripleCardIndex] = useState<
+    number | null
+  >(null);
+  const [isExpandedTripleFront, setIsExpandedTripleFront] = useState(true);
+  const [tripleCardFrontById, setTripleCardFrontById] = useState<
+    Record<string, boolean>
+  >({});
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [autoFlipNext, setAutoFlipNext] = useState(false);
@@ -314,6 +342,9 @@ export default function Index() {
   const [fanLayout, setFanLayout] = useState<LayoutFrame | null>(null);
   const lastLayoutWidthRef = useRef<number | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
+  const singleSelectionAnimsRef = useRef<Animated.Value[]>(
+    Array.from({ length: 6 }, () => new Animated.Value(0)),
+  );
   const tripleSelectionAnimsRef = useRef<Animated.Value[]>(
     Array.from({ length: 6 }, () => new Animated.Value(0)),
   );
@@ -336,6 +367,8 @@ export default function Index() {
   const cardInteractionLockTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const selectedSlotRef = useRef<number | null>(null);
+  const isConfirmOpenRef = useRef(false);
   const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
@@ -371,6 +404,35 @@ export default function Index() {
     () => buildDetailLines(currentCard),
     [currentCard],
   );
+  const getSingleSelectionAnim = useCallback((slotIndex: number) => {
+    const values = singleSelectionAnimsRef.current;
+    while (values.length <= slotIndex) {
+      values.push(new Animated.Value(0));
+    }
+    return values[slotIndex];
+  }, []);
+  const animateSingleSelectionSlot = useCallback(
+    (slotIndex: number, toValue: 0 | 1) => {
+      const value = getSingleSelectionAnim(slotIndex);
+      value.stopAnimation();
+      Animated.timing(value, {
+        toValue,
+        duration: FAN_SELECTION_ANIMATION_MS,
+        easing:
+          toValue === 1
+            ? Easing.out(Easing.cubic)
+            : Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    },
+    [getSingleSelectionAnim],
+  );
+  const resetSingleSelectionAnims = useCallback(() => {
+    singleSelectionAnimsRef.current.forEach((value) => {
+      value.stopAnimation();
+      value.setValue(0);
+    });
+  }, []);
   const getTripleSelectionAnim = useCallback((slotIndex: number) => {
     const values = tripleSelectionAnimsRef.current;
     while (values.length <= slotIndex) {
@@ -488,6 +550,14 @@ export default function Index() {
   useEffect(() => {
     isAudioEnabledRef.current = isAudioEnabled;
   }, [isAudioEnabled]);
+
+  useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
+
+  useEffect(() => {
+    isConfirmOpenRef.current = isConfirmOpen;
+  }, [isConfirmOpen]);
 
   const unloadCurrentSound = useCallback(async () => {
     const activeSound = soundRef.current;
@@ -728,6 +798,7 @@ export default function Index() {
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
     selectionAnim.setValue(0);
+    resetSingleSelectionAnims();
     resetTripleSelectionAnims();
     fanCollapse.setValue(0);
     setDeckState({ cards: drawableCards, order: [], index: 0 });
@@ -739,10 +810,15 @@ export default function Index() {
     setFavorites({});
     setSelectedHistoryId(null);
     setIsHistoryOpen(false);
+    selectedSlotRef.current = null;
+    isConfirmOpenRef.current = false;
     setSelectedSlot(null);
     setSelectedSlots([]);
     setTripleCards([]);
     setActiveTripleCardIndex(0);
+    setExpandedTripleCardIndex(null);
+    setIsExpandedTripleFront(true);
+    setTripleCardFrontById({});
     setIsConfirmOpen(false);
     setAutoFlipNext(false);
     setIsShuffling(false);
@@ -759,6 +835,7 @@ export default function Index() {
     void storage.setItem(LAST_CARD_KEY, "");
   }, [
     fanCollapse,
+    resetSingleSelectionAnims,
     resetTripleSelectionAnims,
     selectionAnim,
     shuffleShake,
@@ -794,6 +871,14 @@ export default function Index() {
         }
         setTripleCards(drawnCards);
         setActiveTripleCardIndex(0);
+        setExpandedTripleCardIndex(null);
+        setIsExpandedTripleFront(true);
+        setTripleCardFrontById(
+          drawnCards.reduce<Record<string, boolean>>((acc, card) => {
+            acc[card.id] = true;
+            return acc;
+          }, {}),
+        );
         setCurrentCard(drawnCards[0] ?? null);
         drawnCards.forEach((card) => {
           recordHistory(card);
@@ -961,14 +1046,20 @@ export default function Index() {
     }));
     setIsFront(false);
     setCurrentCard(null);
+    selectedSlotRef.current = null;
+    isConfirmOpenRef.current = false;
     setSelectedSlot(null);
     setSelectedSlots([]);
     setTripleCards([]);
     setActiveTripleCardIndex(0);
+    setExpandedTripleCardIndex(null);
+    setIsExpandedTripleFront(true);
+    setTripleCardFrontById({});
     setIsConfirmOpen(false);
     selectionAnim.setValue(0);
+    resetSingleSelectionAnims();
     resetTripleSelectionAnims();
-  }, [resetTripleSelectionAnims, selectionAnim]);
+  }, [resetSingleSelectionAnims, resetTripleSelectionAnims, selectionAnim]);
 
   const handleShuffleDone = useCallback(() => {
     shuffleDeck();
@@ -1192,6 +1283,8 @@ export default function Index() {
     setFlipPair(null);
     setIsFront(false);
     setIsDetailMode(false);
+    setExpandedTripleCardIndex(null);
+    setIsExpandedTripleFront(true);
     clearCardInteractionLock();
     startShuffle();
   }, [clearCardInteractionLock, isShuffling, startShuffle]);
@@ -1319,7 +1412,10 @@ export default function Index() {
     (confirmed: boolean) => {
       if (confirmed) {
         selectionAnim.setValue(0);
+        resetSingleSelectionAnims();
         resetTripleSelectionAnims();
+        isConfirmOpenRef.current = false;
+        selectedSlotRef.current = null;
         setIsConfirmOpen(false);
         setSelectedSlot(null);
         setSelectedSlots([]);
@@ -1330,6 +1426,7 @@ export default function Index() {
         }
         return;
       }
+      resetSingleSelectionAnims();
       selectedSlots.forEach((slot) => animateTripleSelectionSlot(slot, 0));
       Animated.timing(selectionAnim, {
         toValue: 0,
@@ -1337,6 +1434,8 @@ export default function Index() {
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
+        isConfirmOpenRef.current = false;
+        selectedSlotRef.current = null;
         setIsConfirmOpen(false);
         setSelectedSlot(null);
         setSelectedSlots([]);
@@ -1344,6 +1443,7 @@ export default function Index() {
     },
     [
       animateTripleSelectionSlot,
+      resetSingleSelectionAnims,
       drawMode,
       drawNextCard,
       drawTripleCards,
@@ -1391,44 +1491,33 @@ export default function Index() {
         }
         return;
       }
-      if (isConfirmOpen && selectedSlot === slotIndex) {
-        handleConfirmSelection(true);
+      const currentSelectedSlot = selectedSlotRef.current;
+      const confirmOpenNow = isConfirmOpenRef.current;
+      if (confirmOpenNow) {
+        if (currentSelectedSlot === slotIndex) {
+          handleConfirmSelection(true);
+          return;
+        }
+        if (currentSelectedSlot !== null) {
+          animateSingleSelectionSlot(currentSelectedSlot, 0);
+        }
+        selectedSlotRef.current = slotIndex;
+        setSelectedSlot(slotIndex);
+        animateSingleSelectionSlot(slotIndex, 1);
         return;
       }
-      if (selectedSlot !== null && selectedSlot !== slotIndex) {
-        selectionAnim.stopAnimation();
-        Animated.timing(selectionAnim, {
-          toValue: 0,
-          duration: FAN_SELECTION_ANIMATION_MS,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: true,
-        }).start(({ finished }) => {
-          if (!finished) {
-            return;
-          }
-          setSelectedSlot(slotIndex);
-          setIsConfirmOpen(true);
-          selectionAnim.setValue(0);
-          Animated.timing(selectionAnim, {
-            toValue: 1,
-            duration: FAN_SELECTION_ANIMATION_MS,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }).start();
-        });
-        return;
+      if (currentSelectedSlot !== null && currentSelectedSlot !== slotIndex) {
+        animateSingleSelectionSlot(currentSelectedSlot, 0);
       }
+      selectedSlotRef.current = slotIndex;
+      isConfirmOpenRef.current = true;
       setSelectedSlot(slotIndex);
       setIsConfirmOpen(true);
-      Animated.timing(selectionAnim, {
-        toValue: 1,
-        duration: FAN_SELECTION_ANIMATION_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
+      animateSingleSelectionSlot(slotIndex, 1);
     },
     [
       handleConfirmSelection,
+      animateSingleSelectionSlot,
       animateTripleSelectionSlot,
       drawMode,
       isConfirmOpen,
@@ -1451,14 +1540,25 @@ export default function Index() {
       return;
     }
     selectionAnim.setValue(0);
+    resetSingleSelectionAnims();
     resetTripleSelectionAnims();
+    selectedSlotRef.current = null;
+    isConfirmOpenRef.current = false;
     setIsConfirmOpen(false);
     setSelectedSlot(null);
     setSelectedSlots([]);
     setTripleCards([]);
     setActiveTripleCardIndex(0);
+    setExpandedTripleCardIndex(null);
+    setIsExpandedTripleFront(true);
+    setTripleCardFrontById({});
     setDrawMode((prev) => (prev === "single" ? "triple" : "single"));
-  }, [canSwitchDrawMode, resetTripleSelectionAnims, selectionAnim]);
+  }, [
+    canSwitchDrawMode,
+    resetSingleSelectionAnims,
+    resetTripleSelectionAnims,
+    selectionAnim,
+  ]);
 
   const canSwipeTripleCards = tripleCards.length === 3 && currentCard !== null;
   const handleTripleSwipe = useCallback(
@@ -1706,46 +1806,107 @@ export default function Index() {
   const selectedJournalCard = selectedJournalEntry
     ? (cardsById.get(selectedJournalEntry.cardId) ?? null)
     : null;
-  const journalDetailText = useMemo(() => {
-    if (!selectedJournalCard) {
-      return "No description available.";
+  const journalDetailText = useMemo(
+    () => buildCardDetailText(selectedJournalCard),
+    [selectedJournalCard],
+  );
+  const journalPeekText = useMemo(
+    () => buildCardDetailText(currentCard),
+    [currentCard],
+  );
+  const showTriplePyramid = drawMode === "triple" && tripleCards.length === 3;
+  const expandedTripleCard =
+    expandedTripleCardIndex !== null
+      ? (tripleCards[expandedTripleCardIndex] ?? null)
+      : null;
+  const expandedTripleDetailText = useMemo(
+    () => buildCardDetailText(expandedTripleCard),
+    [expandedTripleCard],
+  );
+  const tripleMiniCardWidth = useMemo(
+    () => Math.min(cardWidth * 0.4, 138),
+    [cardWidth],
+  );
+  const tripleExpandedActionsOffset = useMemo(
+    () => Math.round(windowHeight * 0.05),
+    [windowHeight],
+  );
+  const tripleMiniCardHeight = useMemo(
+    () => tripleMiniCardWidth * 1.5,
+    [tripleMiniCardWidth],
+  );
+  const triplePyramidCardsHeight = useMemo(
+    () => tripleMiniCardHeight * 1.58,
+    [tripleMiniCardHeight],
+  );
+  const triplePyramidHeight = useMemo(
+    () => triplePyramidCardsHeight + spacing.xl + 54,
+    [triplePyramidCardsHeight],
+  );
+  const triplePyramidSlots = useMemo(
+    () => [
+      {
+        offsetX: 0,
+        top: 0,
+        rotate: "0deg",
+        zIndex: 3,
+      },
+      {
+        offsetX: -tripleMiniCardWidth * 0.47,
+        top: tripleMiniCardHeight * 0.52,
+        rotate: "-7deg",
+        zIndex: 2,
+      },
+      {
+        offsetX: tripleMiniCardWidth * 0.47,
+        top: tripleMiniCardHeight * 0.52,
+        rotate: "7deg",
+        zIndex: 2,
+      },
+    ],
+    [tripleMiniCardHeight, tripleMiniCardWidth],
+  );
+  const openExpandedTripleCard = useCallback(
+    (index: number) => {
+      const card = tripleCards[index];
+      if (!card) {
+        return;
+      }
+      const storedFront = tripleCardFrontById[card.id];
+      const nextFront = storedFront ?? true;
+      if (storedFront === undefined) {
+        setTripleCardFrontById((prev) => ({ ...prev, [card.id]: true }));
+      }
+      setCurrentCard(card);
+      persistLastCard(card);
+      setExpandedTripleCardIndex(index);
+      setIsExpandedTripleFront(nextFront);
+    },
+    [persistLastCard, tripleCardFrontById, tripleCards],
+  );
+  const closeExpandedTripleCard = useCallback(() => {
+    setExpandedTripleCardIndex(null);
+  }, []);
+  const handleExpandedTripleFlip = useCallback(() => {
+    if (!expandedTripleCard || !isExpandedTripleFront) {
+      return;
     }
-    const lines = buildDetailLines(selectedJournalCard).slice(1);
-    if (lines.length === 0) {
-      return "No description available.";
+    setIsExpandedTripleFront(false);
+    setTripleCardFrontById((state) => ({
+      ...state,
+      [expandedTripleCard.id]: false,
+    }));
+  }, [expandedTripleCard, isExpandedTripleFront]);
+  const openJournalFromExpandedTriple = useCallback(() => {
+    if (!expandedTripleCard) {
+      return;
     }
-    return lines
-      .map((line) => {
-        if (line.type === "heading") {
-          return line.text;
-        }
-        if (line.type === "bullet") {
-          return `• ${line.text.replace(/^~/, "")}`;
-        }
-        return line.text;
-      })
-      .join("\n\n");
-  }, [selectedJournalCard]);
-  const journalPeekText = useMemo(() => {
-    if (!currentCard) {
-      return "No description available.";
-    }
-    const lines = buildDetailLines(currentCard).slice(1);
-    if (lines.length === 0) {
-      return "No description available.";
-    }
-    return lines
-      .map((line) => {
-        if (line.type === "heading") {
-          return line.text;
-        }
-        if (line.type === "bullet") {
-          return `• ${line.text.replace(/^~/, "")}`;
-        }
-        return line.text;
-      })
-      .join("\n\n");
-  }, [currentCard]);
+    setCurrentCard(expandedTripleCard);
+    persistLastCard(expandedTripleCard);
+    setJournalDraft("");
+    setIsJournalOpen(true);
+    setExpandedTripleCardIndex(null);
+  }, [expandedTripleCard, persistLastCard]);
   const renderHistoryItem = useCallback(
     ({ item }: { item: HistoryEntry & { formatted: string } }) => {
       const rowCard = cardsById.get(item.id) ?? null;
@@ -1958,7 +2119,65 @@ export default function Index() {
                 </Animated.Text>
               </View>
             ) : null}
-            {currentCard ? (
+            {showTriplePyramid ? (
+              <View
+                style={[
+                  styles.triplePyramidWrap,
+                  { width: cardWidth, height: triplePyramidHeight },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.triplePyramidCardsLayer,
+                    { height: triplePyramidCardsHeight },
+                  ]}
+                >
+                  {tripleCards.map((card, index) => {
+                    const slot = triplePyramidSlots[index];
+                    if (!slot) {
+                      return null;
+                    }
+                    return (
+                      <Pressable
+                        key={`triple-mini-card-${card.id}-${index}`}
+                        onPress={() => openExpandedTripleCard(index)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open ${card.title}`}
+                        style={[
+                          styles.tripleMiniCard,
+                          {
+                            width: tripleMiniCardWidth,
+                            height: tripleMiniCardHeight,
+                            left: "50%",
+                            marginLeft: -tripleMiniCardWidth / 2 + slot.offsetX,
+                            top: slot.top,
+                            zIndex: slot.zIndex,
+                            transform: [{ rotate: slot.rotate }],
+                          },
+                        ]}
+                      >
+                        <Image
+                          source={card.image}
+                          style={styles.tripleMiniCardImage}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={styles.triplePyramidHint}>
+                  Tap a card to expand
+                </Text>
+                <View style={styles.triplePyramidMenuRow}>
+                  <ThemedButton
+                    label="Menu"
+                    onPress={resetApp}
+                    variant="secondary"
+                    style={styles.triplePyramidMenuButton}
+                    labelStyle={styles.tripleExpandedActionLabel}
+                  />
+                </View>
+              </View>
+            ) : currentCard ? (
               <View
                 style={[styles.cardWrapper, { width: cardWidth }]}
                 {...(canSwipeTripleCards ? swipeResponder.panHandlers : {})}
@@ -2126,14 +2345,16 @@ export default function Index() {
                       drawMode === "triple"
                         ? selectedSlots.includes(index)
                         : selectedSlot === index;
-                    const pullOutY = Animated.multiply(
-                      selectionAnim,
+                    const singlePullOutY = Animated.multiply(
+                      getSingleSelectionAnim(index),
                       fanCardHeight * 0.18,
                     );
                     const triplePullOutY = Animated.multiply(
                       getTripleSelectionAnim(index),
                       fanCardHeight * 0.14,
                     );
+                    const selectionPullOutY =
+                      drawMode === "single" ? singlePullOutY : triplePullOutY;
                     const translateX = fanCollapse.interpolate({
                       inputRange: [0, 1],
                       outputRange: [slot.x - fanCardWidth / 2, stackX],
@@ -2224,12 +2445,7 @@ export default function Index() {
                               { rotate: rotateZ },
                               { rotate: swirlRotate },
                               { scale },
-                              ...(drawMode === "single" && isSelected
-                                ? [{ translateY: pullOutY }]
-                                : []),
-                              ...(drawMode === "triple"
-                                ? [{ translateY: triplePullOutY }]
-                                : []),
+                              { translateY: selectionPullOutY },
                             ],
                           },
                         ]}
@@ -2247,7 +2463,11 @@ export default function Index() {
             )}
             <View
               style={{
-                height: currentCard ? cardToControlsGap : fanToControlsGap,
+                height: showTriplePyramid
+                  ? fanToControlsGap
+                  : currentCard
+                    ? cardToControlsGap
+                    : fanToControlsGap,
               }}
             />
 
@@ -2258,7 +2478,7 @@ export default function Index() {
                 { marginTop: currentCard ? 0 : 40 },
               ]}
             >
-              {!currentCard && !isConfirmOpen ? (
+              {!currentCard && !isConfirmOpen && tripleCards.length === 0 ? (
                 <>
                   <Pressable
                     onPress={handleShufflePress}
@@ -2279,6 +2499,107 @@ export default function Index() {
                 </>
               ) : null}
             </View>
+
+            <Modal
+              transparent
+              visible={expandedTripleCardIndex !== null}
+              animationType="fade"
+              onRequestClose={closeExpandedTripleCard}
+            >
+              <View style={styles.tripleExpandedOverlay}>
+                <View style={styles.tripleExpandedBackdrop} />
+                <View style={styles.tripleExpandedPanel}>
+                  {expandedTripleCard ? (
+                    <>
+                      <CardFlip
+                        isFront={isExpandedTripleFront}
+                        onBeforeFlip={handleExpandedTripleFlip}
+                        disabled={!isExpandedTripleFront}
+                        idle={false}
+                        front={
+                          <Image
+                            source={expandedTripleCard.image}
+                            style={styles.tripleExpandedImage}
+                          />
+                        }
+                        back={
+                          <ImageBackground
+                            source={
+                              expandedTripleCard.detailImage ??
+                              expandedTripleCard.image ??
+                              cardBackImage
+                            }
+                            style={styles.tripleExpandedBack}
+                            imageStyle={styles.cardImage}
+                          >
+                            <View style={styles.tripleExpandedBackOverlay}>
+                              <Text style={styles.tripleExpandedBackTitle}>
+                                {expandedTripleCard.title}
+                              </Text>
+                              <ScrollView
+                                style={styles.tripleExpandedBackScrollArea}
+                                contentContainerStyle={
+                                  styles.tripleExpandedBackScroll
+                                }
+                                showsVerticalScrollIndicator={false}
+                                nestedScrollEnabled
+                              >
+                                <Text style={styles.tripleExpandedBackText}>
+                                  {expandedTripleDetailText}
+                                </Text>
+                              </ScrollView>
+                            </View>
+                          </ImageBackground>
+                        }
+                        style={[
+                          styles.tripleExpandedCard,
+                          {
+                            width: cardWidth,
+                            height: cardWidth * 1.5,
+                          },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.tripleExpandedActionRow,
+                          { marginTop: tripleExpandedActionsOffset },
+                        ]}
+                      >
+                        <ThemedButton
+                          label="Journal"
+                          onPress={openJournalFromExpandedTriple}
+                          variant="secondary"
+                          style={styles.tripleExpandedActionButton}
+                          labelStyle={styles.tripleExpandedActionLabel}
+                        />
+                        <ThemedButton
+                          label="Close"
+                          onPress={closeExpandedTripleCard}
+                          variant="secondary"
+                          style={styles.tripleExpandedActionButton}
+                          labelStyle={styles.tripleExpandedActionLabel}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <View
+                      style={[
+                        styles.tripleExpandedActionRow,
+                        { marginTop: tripleExpandedActionsOffset },
+                      ]}
+                    >
+                      <ThemedButton
+                        label="Close"
+                        onPress={closeExpandedTripleCard}
+                        variant="secondary"
+                        style={styles.tripleExpandedActionButton}
+                        labelStyle={styles.tripleExpandedActionLabel}
+                      />
+                    </View>
+                  )}
+                </View>
+              </View>
+            </Modal>
 
             <Modal transparent visible={isHistoryOpen} animationType="fade">
               <View style={styles.modalOverlay}>
@@ -2965,6 +3286,139 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255, 255, 255, 0.55)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 6,
+  },
+  triplePyramidWrap: {
+    position: "relative",
+    alignSelf: "center",
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+    alignItems: "center",
+  },
+  triplePyramidCardsLayer: {
+    width: "100%",
+    position: "relative",
+  },
+  tripleMiniCard: {
+    position: "absolute",
+    borderRadius: radii.lg,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+    ...shadow.soft,
+  },
+  tripleMiniCardImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  triplePyramidHint: {
+    textAlign: "center",
+    color: "#50250E",
+    fontFamily: appFontFamily,
+    fontSize: Math.round((typography.subtitle + 1) * 1.2),
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
+    textShadowColor: "rgba(255, 255, 255, 0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  triplePyramidMenuRow: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  triplePyramidMenuButton: {
+    width: "46%",
+    maxWidth: 170,
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 999,
+    backgroundColor: "#f2c8a7",
+    borderColor: "#d4a47d",
+    borderWidth: 1,
+  },
+  tripleExpandedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 20,
+  },
+  tripleExpandedBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 9, 8, 0.62)",
+  },
+  tripleExpandedPanel: {
+    width: "100%",
+    maxWidth: 480,
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  tripleExpandedCard: {
+    ...shadow.soft,
+  },
+  tripleExpandedImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  tripleExpandedBack: {
+    flex: 1,
+  },
+  tripleExpandedBackOverlay: {
+    flex: 1,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "flex-start",
+    backgroundColor: "transparent",
+  },
+  tripleExpandedBackTitle: {
+    color: "#50250E",
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: spacing.sm,
+    fontFamily: appFontFamily,
+  },
+  tripleExpandedBackScrollArea: {
+    flex: 1,
+  },
+  tripleExpandedBackScroll: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  tripleExpandedBackText: {
+    color: "#50250E",
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+  },
+  tripleExpandedActionRow: {
+    width: "86%",
+    maxWidth: 336,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  tripleExpandedActionButton: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: 999,
+    backgroundColor: "#f2c8a7",
+    borderColor: "#d4a47d",
+    borderWidth: 1,
+  },
+  tripleExpandedActionLabel: {
+    color: "#50250E",
+    letterSpacing: 0.25,
+    fontSize: 16,
   },
   cardWrapper: {
     position: "relative",

@@ -63,7 +63,7 @@ export default function CardFlip({
       toValue: isFront ? 180 : 0,
       duration: 380,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== "ios",
+      useNativeDriver: true,
     }).start();
   }, [flip, isFront]);
 
@@ -115,6 +115,18 @@ export default function CardFlip({
   }, [idleScale, idleTranslate, isFront]);
 
   const flipAnimatedStyle = useMemo(() => {
+    if (ios) {
+      return {
+        transform: [
+          {
+            scale: flip.interpolate({
+              inputRange: [0, 90, 180],
+              outputRange: [1, 0.985, 1],
+            }),
+          },
+        ],
+      };
+    }
     return {
       transform: [
         { perspective: 1000 },
@@ -126,15 +138,15 @@ export default function CardFlip({
         },
       ],
     };
-  }, [flip]);
+  }, [flip, ios]);
 
   const frontOpacity = useMemo(() => {
     if (!ios) {
       return 1;
     }
     return flip.interpolate({
-      inputRange: [0, 88, 90, 92, 180],
-      outputRange: [0, 0, 0.18, 1, 1],
+      inputRange: [0, 89.5, 90, 180],
+      outputRange: [0, 0, 1, 1],
     });
   }, [flip, ios]);
 
@@ -143,8 +155,30 @@ export default function CardFlip({
       return 1;
     }
     return flip.interpolate({
-      inputRange: [0, 88, 90, 92, 180],
-      outputRange: [1, 1, 0.18, 0, 0],
+      inputRange: [0, 89.5, 90, 180],
+      outputRange: [1, 1, 0, 0],
+    });
+  }, [flip, ios]);
+
+  const iosBackScaleX = useMemo(() => {
+    if (!ios) {
+      return 1;
+    }
+    return flip.interpolate({
+      inputRange: [0, 90],
+      outputRange: [1, 0.06],
+      extrapolate: "clamp",
+    });
+  }, [flip, ios]);
+
+  const iosFrontScaleX = useMemo(() => {
+    if (!ios) {
+      return 1;
+    }
+    return flip.interpolate({
+      inputRange: [90, 180],
+      outputRange: [0.06, 1],
+      extrapolate: "clamp",
     });
   }, [flip, ios]);
 
@@ -296,23 +330,37 @@ export default function CardFlip({
       <Animated.View style={[styles.glow, glowStyle]} />
       <Animated.View style={[styles.cardFrame, style, cardPresenceStyle]}>
         <Animated.View style={[styles.card3d, flipAnimatedStyle]}>
-          <View style={[styles.card, styles.underlay]} pointerEvents="none">
-            {back}
-          </View>
+          {!ios ? (
+            <View style={[styles.card, styles.underlay]} pointerEvents="none">
+              {back}
+            </View>
+          ) : null}
           <Animated.View
+            pointerEvents={isFront ? "none" : "auto"}
             style={[
               styles.card,
               styles.cardBack,
-              Platform.OS === "ios" ? { opacity: backOpacity } : null,
+              ios
+                ? {
+                    opacity: backOpacity,
+                    transform: [{ scaleX: iosBackScaleX }],
+                  }
+                : null,
             ]}
           >
             {back}
           </Animated.View>
           <Animated.View
+            pointerEvents={isFront ? "auto" : "none"}
             style={[
               styles.card,
               styles.cardFront,
-              Platform.OS === "ios" ? { opacity: frontOpacity } : null,
+              ios
+                ? {
+                    opacity: frontOpacity,
+                    transform: [{ scaleX: iosFrontScaleX }],
+                  }
+                : null,
             ]}
           >
             {front}
@@ -356,22 +404,26 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: radii.lg,
     overflow: "hidden",
-    ...(Platform.OS === "ios"
-      ? { backfaceVisibility: "visible" }
-      : { backfaceVisibility: "hidden" }),
+    backfaceVisibility: "hidden",
     backgroundColor: "transparent",
   },
   underlay: {
-    backgroundColor: colors.surface,
+    ...(Platform.OS === "ios"
+      ? { backgroundColor: "transparent" }
+      : { backgroundColor: colors.surface }),
     zIndex: 0,
   },
   cardFront: {
-    transform: [{ rotateY: "180deg" }],
-    backgroundColor: colors.surface,
+    ...(Platform.OS === "ios" ? {} : { transform: [{ rotateY: "180deg" }] }),
+    ...(Platform.OS === "ios"
+      ? { backgroundColor: "transparent" }
+      : { backgroundColor: colors.surface }),
     zIndex: 2,
   },
   cardBack: {
-    backgroundColor: colors.surface,
+    ...(Platform.OS === "ios"
+      ? { backgroundColor: "transparent" }
+      : { backgroundColor: colors.surface }),
     zIndex: 1,
   },
 });
