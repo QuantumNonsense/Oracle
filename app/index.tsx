@@ -72,6 +72,8 @@ const DETAIL_TEXT_BLANK_MS = 200;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
 const FAN_SELECTION_ANIMATION_MS = 350;
+const SHUFFLE_BUTTON_PRESS_IN_DURATION_MS = 120;
+const SHUFFLE_BUTTON_PRESS_OUT_DURATION_MS = 170;
 
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
@@ -352,6 +354,7 @@ export default function Index() {
   const shuffleShake = useRef(new Animated.Value(0)).current;
   const shuffleSwirl = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const shuffleButtonPress = useRef(new Animated.Value(0)).current;
   const detailLineAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -367,6 +370,7 @@ export default function Index() {
   const cardInteractionLockTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const handleDetailBackRef = useRef<() => void>(() => {});
   const selectedSlotRef = useRef<number | null>(null);
   const isConfirmOpenRef = useRef(false);
   const isCardTransitioningRef = useRef(false);
@@ -395,6 +399,29 @@ export default function Index() {
     return <Image source={currentCard.detailImage} style={styles.cardImage} />;
   }, [currentCard]);
   const journalEntryList = useMemo(() => journalEntries, [journalEntries]);
+  const shuffleButtonPressStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          translateY: shuffleButtonPress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 4],
+          }),
+        },
+        {
+          scale: shuffleButtonPress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0.95],
+          }),
+        },
+      ],
+      opacity: shuffleButtonPress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.84],
+      }),
+    }),
+    [shuffleButtonPress],
+  );
   const detailLines = useMemo(
     () => buildDetailLines(currentCard),
     [currentCard],
@@ -477,7 +504,15 @@ export default function Index() {
       <View pointerEvents="box-none" style={styles.detailOverlay}>
         <View style={styles.detailHeader}>
           {titleLine ? (
-            <Animated.Text style={[styles.detailTitleText, getLineStyle(0)]}>
+            <Animated.Text
+              style={[styles.detailTitleText, getLineStyle(0)]}
+              onPress={(event) => {
+                event.stopPropagation();
+                handleDetailBackRef.current();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Flip ${titleLine.text} back to front`}
+            >
               {titleLine.text}
             </Animated.Text>
           ) : null}
@@ -1279,6 +1314,29 @@ export default function Index() {
     clearCardInteractionLock();
     startShuffle();
   }, [clearCardInteractionLock, isShuffling, startShuffle]);
+  const animateShuffleButtonPress = useCallback(
+    (pressed: boolean) => {
+      const shouldPress = pressed && !isShuffling;
+      shuffleButtonPress.stopAnimation();
+      Animated.timing(shuffleButtonPress, {
+        toValue: shouldPress ? 1 : 0,
+        duration: shouldPress
+          ? SHUFFLE_BUTTON_PRESS_IN_DURATION_MS
+          : SHUFFLE_BUTTON_PRESS_OUT_DURATION_MS,
+        easing: shouldPress
+          ? Easing.out(Easing.cubic)
+          : Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    },
+    [isShuffling, shuffleButtonPress],
+  );
+  useEffect(() => {
+    if (!isShuffling) {
+      return;
+    }
+    animateShuffleButtonPress(false);
+  }, [animateShuffleButtonPress, isShuffling]);
 
   const handleCardTap = useCallback(() => {
     if (isCardTransitioningRef.current) {
@@ -1398,6 +1456,7 @@ export default function Index() {
     }
     scheduleFlipToFront();
   }, [backNode, currentCard, frontNode, lockCardInteraction]);
+  handleDetailBackRef.current = handleDetailBack;
 
   const handleConfirmSelection = useCallback(
     (confirmed: boolean) => {
@@ -1882,6 +1941,22 @@ export default function Index() {
       [expandedTripleCard.id]: false,
     }));
   }, [expandedTripleCard, isExpandedTripleFront]);
+  const handleExpandedTripleTitlePress = useCallback(() => {
+    if (!expandedTripleCard || isExpandedTripleFront) {
+      return;
+    }
+    setIsExpandedTripleFront(true);
+    setTripleCardFrontById((state) => ({
+      ...state,
+      [expandedTripleCard.id]: true,
+    }));
+  }, [expandedTripleCard, isExpandedTripleFront]);
+  const handleJournalDetailTitlePress = useCallback(() => {
+    if (isJournalDetailCardFront) {
+      return;
+    }
+    setIsJournalDetailCardFront(true);
+  }, [isJournalDetailCardFront]);
   const openJournalFromExpandedTriple = useCallback(() => {
     if (!expandedTripleCard) {
       return;
@@ -2489,19 +2564,25 @@ export default function Index() {
                 <>
                   <Pressable
                     onPress={handleShufflePress}
+                    onPressIn={() => animateShuffleButtonPress(true)}
+                    onPressOut={() => animateShuffleButtonPress(false)}
                     disabled={isShuffling}
                     accessibilityRole="button"
                     accessibilityLabel="Shuffle"
-                    style={({ pressed }) => [
-                      styles.shuffleButton,
-                      pressed && !isShuffling && styles.shuffleButtonPressed,
-                    ]}
+                    style={styles.shuffleButton}
                   >
-                    <Image
-                      source={shuffleImage}
-                      style={styles.shuffleButtonImage}
-                      resizeMode="contain"
-                    />
+                    <Animated.View
+                      style={[
+                        styles.shuffleButtonSurface,
+                        shuffleButtonPressStyle,
+                      ]}
+                    >
+                      <Image
+                        source={shuffleImage}
+                        style={styles.shuffleButtonImage}
+                        resizeMode="contain"
+                      />
+                    </Animated.View>
                   </Pressable>
                 </>
               ) : null}
@@ -2572,7 +2653,15 @@ export default function Index() {
                             <View style={styles.detailOverlay}>
                               <View style={styles.detailHeader}>
                                 {expandedTripleTitleLine ? (
-                                  <Text style={styles.detailTitleText}>
+                                  <Text
+                                    style={styles.detailTitleText}
+                                    onPress={(event) => {
+                                      event.stopPropagation();
+                                      handleExpandedTripleTitlePress();
+                                    }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Flip ${expandedTripleTitleLine.text} back to front`}
+                                  >
                                     {expandedTripleTitleLine.text}
                                   </Text>
                                 ) : null}
@@ -2890,7 +2979,15 @@ export default function Index() {
                             imageStyle={styles.cardImage}
                           >
                             <View style={styles.journalCardExpandedBackOverlay}>
-                              <Text style={styles.journalCardExpandedBackTitle}>
+                              <Text
+                                style={styles.journalCardExpandedBackTitle}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  handleJournalDetailTitlePress();
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Flip ${selectedJournalCard?.title ?? "card"} back to front`}
+                              >
                                 {selectedJournalCard?.title ?? "Card"}
                               </Text>
                               <ScrollView
@@ -3711,9 +3808,9 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  shuffleButtonPressed: {
-    transform: [{ scale: 0.98 }],
-    opacity: 0.92,
+  shuffleButtonSurface: {
+    width: "100%",
+    height: "100%",
   },
   modalKeyboardAvoid: {
     flex: 1,
