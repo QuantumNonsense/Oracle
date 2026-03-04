@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 3,
     borderRadius: radii.lg,
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.borderSoft,
   },
@@ -147,8 +148,11 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: buttonFontFamily,
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: 17.6,
     letterSpacing: 0.2,
+    textAlign: "center",
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
   labelDark: {
     color: colors.bg,

@@ -392,12 +392,7 @@ export default function Index() {
     if (!currentCard?.detailImage) {
       return null;
     }
-    return (
-      <Image
-        source={currentCard.detailImage}
-        style={styles.cardImage}
-      />
-    );
+    return <Image source={currentCard.detailImage} style={styles.cardImage} />;
   }, [currentCard]);
   const journalEntryList = useMemo(() => journalEntries, [journalEntries]);
   const detailLines = useMemo(
@@ -419,9 +414,7 @@ export default function Index() {
         toValue,
         duration: FAN_SELECTION_ANIMATION_MS,
         easing:
-          toValue === 1
-            ? Easing.out(Easing.cubic)
-            : Easing.inOut(Easing.cubic),
+          toValue === 1 ? Easing.out(Easing.cubic) : Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }).start();
     },
@@ -448,9 +441,7 @@ export default function Index() {
         toValue,
         duration: FAN_SELECTION_ANIMATION_MS,
         easing:
-          toValue === 1
-            ? Easing.out(Easing.cubic)
-            : Easing.inOut(Easing.cubic),
+          toValue === 1 ? Easing.out(Easing.cubic) : Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }).start();
     },
@@ -1815,56 +1806,43 @@ export default function Index() {
     [currentCard],
   );
   const showTriplePyramid = drawMode === "triple" && tripleCards.length === 3;
-  const expandedTripleCard =
-    expandedTripleCardIndex !== null
-      ? (tripleCards[expandedTripleCardIndex] ?? null)
-      : null;
-  const expandedTripleDetailText = useMemo(
-    () => buildCardDetailText(expandedTripleCard),
+  const isTripleExpandedOpen = expandedTripleCardIndex !== null;
+  const expandedTripleCard = isTripleExpandedOpen
+    ? (tripleCards[expandedTripleCardIndex] ?? null)
+    : null;
+  const expandedTripleDetailLines = useMemo(
+    () => buildDetailLines(expandedTripleCard),
     [expandedTripleCard],
   );
-  const tripleMiniCardWidth = useMemo(
-    () => Math.min(cardWidth * 0.4, 138),
+  const expandedTripleTitleLine = expandedTripleDetailLines[0];
+  const expandedTripleBodyLines = expandedTripleDetailLines.slice(1);
+  const tripleMiniRowGap = useMemo(
+    () => Math.max(8, Math.min(14, Math.round(cardWidth * 0.03))),
     [cardWidth],
   );
+  const tripleMiniRowInset = useMemo(
+    () => Math.max(0, Math.round(cardWidth * 0.02)),
+    [cardWidth],
+  );
+  const tripleMiniCardWidth = useMemo(() => {
+    const maxByPyramid = Math.floor(
+      (cardWidth - tripleMiniRowInset * 2 - tripleMiniRowGap) / 2,
+    );
+    const baseTarget = Math.min(cardWidth * 0.31, 110);
+    const target = Math.floor(baseTarget * 1.4375);
+    return Math.max(1, Math.min(target, maxByPyramid));
+  }, [cardWidth, tripleMiniRowGap, tripleMiniRowInset]);
   const tripleExpandedActionsOffset = useMemo(
     () => Math.round(windowHeight * 0.05),
+    [windowHeight],
+  );
+  const tripleExpandedVerticalOffset = useMemo(
+    () => Math.round(windowHeight * 0.1),
     [windowHeight],
   );
   const tripleMiniCardHeight = useMemo(
     () => tripleMiniCardWidth * 1.5,
     [tripleMiniCardWidth],
-  );
-  const triplePyramidCardsHeight = useMemo(
-    () => tripleMiniCardHeight * 1.58,
-    [tripleMiniCardHeight],
-  );
-  const triplePyramidHeight = useMemo(
-    () => triplePyramidCardsHeight + spacing.xl + 54,
-    [triplePyramidCardsHeight],
-  );
-  const triplePyramidSlots = useMemo(
-    () => [
-      {
-        offsetX: 0,
-        top: 0,
-        rotate: "0deg",
-        zIndex: 3,
-      },
-      {
-        offsetX: -tripleMiniCardWidth * 0.47,
-        top: tripleMiniCardHeight * 0.52,
-        rotate: "-7deg",
-        zIndex: 2,
-      },
-      {
-        offsetX: tripleMiniCardWidth * 0.47,
-        top: tripleMiniCardHeight * 0.52,
-        rotate: "7deg",
-        zIndex: 2,
-      },
-    ],
-    [tripleMiniCardHeight, tripleMiniCardWidth],
   );
   const openExpandedTripleCard = useCallback(
     (index: number) => {
@@ -1885,8 +1863,15 @@ export default function Index() {
     [persistLastCard, tripleCardFrontById, tripleCards],
   );
   const closeExpandedTripleCard = useCallback(() => {
+    if (expandedTripleCard) {
+      setTripleCardFrontById((state) => ({
+        ...state,
+        [expandedTripleCard.id]: true,
+      }));
+    }
+    setIsExpandedTripleFront(true);
     setExpandedTripleCardIndex(null);
-  }, []);
+  }, [expandedTripleCard]);
   const handleExpandedTripleFlip = useCallback(() => {
     if (!expandedTripleCard || !isExpandedTripleFront) {
       return;
@@ -2034,62 +2019,35 @@ export default function Index() {
                 setBannerLayout({ y, height });
               }}
             />
+            {currentCard && drawMode === "single" && !isDetailMode ? (
+              <View style={styles.singleBannerReadMoreWrap}>
+                <Animated.Text
+                  style={[
+                    styles.readMoreHint,
+                    styles.readMoreHintSingle,
+                    styles.readMoreHintPlain,
+                    {
+                      opacity: readMoreAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.78, 1],
+                      }),
+                      transform: [
+                        {
+                          scale: readMoreAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.98, 1.07],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  Tap to read more
+                </Animated.Text>
+              </View>
+            ) : null}
             {!currentCard ? (
               <View style={styles.tapHintWrap}>
-                {isConfirmOpen ? (
-                  <>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.tapHint,
-                        styles.tapHintConfirm,
-                        styles.tapHintLayer,
-                        styles.tapHintGlowFar,
-                        {
-                          opacity: tapHintAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.24, 0.72],
-                          }),
-                          transform: [
-                            {
-                              scale: tapHintAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [1.01, 1.08],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      Tap again to confirm
-                    </Animated.Text>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.tapHint,
-                        styles.tapHintConfirm,
-                        styles.tapHintLayer,
-                        styles.tapHintGlowNear,
-                        {
-                          opacity: tapHintAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.4, 0.95],
-                          }),
-                          transform: [
-                            {
-                              scale: tapHintAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [1, 1.04],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      Tap again to confirm
-                    </Animated.Text>
-                  </>
-                ) : null}
                 <Animated.Text
                   style={[
                     styles.tapHint,
@@ -2121,26 +2079,51 @@ export default function Index() {
             ) : null}
             {showTriplePyramid ? (
               <View
-                style={[
-                  styles.triplePyramidWrap,
-                  { width: cardWidth, height: triplePyramidHeight },
-                ]}
+                style={[styles.triplePyramidWrap, { width: cardWidth }]}
+                pointerEvents={isTripleExpandedOpen ? "none" : "auto"}
               >
+                <View style={styles.tripleHintWrap}>
+                  <Animated.Text
+                    style={[
+                      styles.readMoreHint,
+                      styles.readMoreHintSmall,
+                      styles.tripleHintText,
+                      {
+                        opacity: readMoreAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.78, 1],
+                        }),
+                        transform: [
+                          {
+                            scale: readMoreAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0.98, 1.06],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    Tap a card to expand
+                  </Animated.Text>
+                </View>
                 <View
                   style={[
-                    styles.triplePyramidCardsLayer,
-                    { height: triplePyramidCardsHeight },
+                    styles.triplePyramidTopRow,
+                    {
+                      marginTop: tripleMiniRowGap,
+                      gap: tripleMiniRowGap,
+                      paddingHorizontal: tripleMiniRowInset,
+                    },
                   ]}
                 >
-                  {tripleCards.map((card, index) => {
-                    const slot = triplePyramidSlots[index];
-                    if (!slot) {
-                      return null;
-                    }
-                    return (
+                  {[tripleCards[0], tripleCards[2]].map((card, rowIndex) =>
+                    card ? (
                       <Pressable
-                        key={`triple-mini-card-${card.id}-${index}`}
-                        onPress={() => openExpandedTripleCard(index)}
+                        key={`triple-mini-card-top-${card.id}-${rowIndex === 0 ? 0 : 2}`}
+                        onPress={() =>
+                          openExpandedTripleCard(rowIndex === 0 ? 0 : 2)
+                        }
                         accessibilityRole="button"
                         accessibilityLabel={`Open ${card.title}`}
                         style={[
@@ -2148,11 +2131,6 @@ export default function Index() {
                           {
                             width: tripleMiniCardWidth,
                             height: tripleMiniCardHeight,
-                            left: "50%",
-                            marginLeft: -tripleMiniCardWidth / 2 + slot.offsetX,
-                            top: slot.top,
-                            zIndex: slot.zIndex,
-                            transform: [{ rotate: slot.rotate }],
                           },
                         ]}
                       >
@@ -2161,21 +2139,50 @@ export default function Index() {
                           style={styles.tripleMiniCardImage}
                         />
                       </Pressable>
-                    );
-                  })}
+                    ) : null,
+                  )}
                 </View>
-                <Text style={styles.triplePyramidHint}>
-                  Tap a card to expand
-                </Text>
-                <View style={styles.triplePyramidMenuRow}>
-                  <ThemedButton
-                    label="Menu"
-                    onPress={resetApp}
-                    variant="secondary"
-                    style={styles.triplePyramidMenuButton}
-                    labelStyle={styles.tripleExpandedActionLabel}
-                  />
+                <View
+                  style={[
+                    styles.triplePyramidBottomRow,
+                    {
+                      marginTop: tripleMiniRowGap,
+                      paddingHorizontal: tripleMiniRowInset,
+                    },
+                  ]}
+                >
+                  {tripleCards[1] ? (
+                    <Pressable
+                      key={`triple-mini-card-bottom-${tripleCards[1].id}-1`}
+                      onPress={() => openExpandedTripleCard(1)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${tripleCards[1].title}`}
+                      style={[
+                        styles.tripleMiniCard,
+                        {
+                          width: tripleMiniCardWidth,
+                          height: tripleMiniCardHeight,
+                        },
+                      ]}
+                    >
+                      <Image
+                        source={tripleCards[1].image}
+                        style={styles.tripleMiniCardImage}
+                      />
+                    </Pressable>
+                  ) : null}
                 </View>
+                {!isTripleExpandedOpen ? (
+                  <View style={styles.triplePyramidMenuRow}>
+                    <ThemedButton
+                      label="Menu"
+                      onPress={resetApp}
+                      variant="secondary"
+                      style={styles.triplePyramidMenuButton}
+                      labelStyle={styles.tripleExpandedActionLabel}
+                    />
+                  </View>
+                ) : null}
               </View>
             ) : currentCard ? (
               <View
@@ -2197,7 +2204,7 @@ export default function Index() {
                     },
                   ]}
                 />
-                {!isDetailMode ? (
+                {!isDetailMode && drawMode !== "single" ? (
                   <View style={styles.readMoreHintWrap}>
                     <Animated.Text
                       pointerEvents="none"
@@ -2502,15 +2509,45 @@ export default function Index() {
 
             <Modal
               transparent
-              visible={expandedTripleCardIndex !== null}
+              visible={isTripleExpandedOpen}
               animationType="fade"
               onRequestClose={closeExpandedTripleCard}
             >
               <View style={styles.tripleExpandedOverlay}>
                 <View style={styles.tripleExpandedBackdrop} />
-                <View style={styles.tripleExpandedPanel}>
+                <View
+                  style={[
+                    styles.tripleExpandedPanel,
+                    {
+                      transform: [{ translateY: tripleExpandedVerticalOffset }],
+                    },
+                  ]}
+                >
                   {expandedTripleCard ? (
                     <>
+                      {isExpandedTripleFront ? (
+                        <Animated.Text
+                          style={[
+                            styles.tripleExpandedReadMoreHint,
+                            {
+                              opacity: readMoreAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.78, 1],
+                              }),
+                              transform: [
+                                {
+                                  scale: readMoreAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0.98, 1.06],
+                                  }),
+                                },
+                              ],
+                            },
+                          ]}
+                        >
+                          Tap to read more
+                        </Animated.Text>
+                      ) : null}
                       <CardFlip
                         isFront={isExpandedTripleFront}
                         onBeforeFlip={handleExpandedTripleFlip}
@@ -2532,21 +2569,47 @@ export default function Index() {
                             style={styles.tripleExpandedBack}
                             imageStyle={styles.cardImage}
                           >
-                            <View style={styles.tripleExpandedBackOverlay}>
-                              <Text style={styles.tripleExpandedBackTitle}>
-                                {expandedTripleCard.title}
-                              </Text>
+                            <View style={styles.detailOverlay}>
+                              <View style={styles.detailHeader}>
+                                {expandedTripleTitleLine ? (
+                                  <Text style={styles.detailTitleText}>
+                                    {expandedTripleTitleLine.text}
+                                  </Text>
+                                ) : null}
+                              </View>
                               <ScrollView
-                                style={styles.tripleExpandedBackScrollArea}
-                                contentContainerStyle={
-                                  styles.tripleExpandedBackScroll
-                                }
+                                style={styles.detailScroll}
+                                contentContainerStyle={styles.detailScrollContent}
                                 showsVerticalScrollIndicator={false}
                                 nestedScrollEnabled
                               >
-                                <Text style={styles.tripleExpandedBackText}>
-                                  {expandedTripleDetailText}
-                                </Text>
+                                {expandedTripleBodyLines.map((line) => {
+                                  if (line.type === "heading") {
+                                    return (
+                                      <Text
+                                        key={line.key}
+                                        style={styles.detailHeadingText}
+                                      >
+                                        {line.text}
+                                      </Text>
+                                    );
+                                  }
+                                  if (line.type === "bullet") {
+                                    return (
+                                      <Text
+                                        key={line.key}
+                                        style={styles.detailBulletText}
+                                      >
+                                        {line.text}
+                                      </Text>
+                                    );
+                                  }
+                                  return (
+                                    <Text key={line.key} style={styles.detailBodyText}>
+                                      {line.text}
+                                    </Text>
+                                  );
+                                })}
                               </ScrollView>
                             </View>
                           </ImageBackground>
@@ -2554,8 +2617,8 @@ export default function Index() {
                         style={[
                           styles.tripleExpandedCard,
                           {
-                            width: cardWidth,
-                            height: cardWidth * 1.5,
+                            width: cardWidth * 1.05,
+                            height: cardWidth * 1.5 * 1.05,
                           },
                         ]}
                       />
@@ -3263,29 +3326,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
-  tapHintLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  tapHintGlowFar: {
-    color: "rgba(255, 255, 255, 0.45)",
-    textShadowColor: "rgba(255, 255, 255, 0.45)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 18,
-  },
-  tapHintGlowNear: {
-    color: "rgba(255, 255, 255, 0.62)",
-    textShadowColor: "rgba(255, 255, 255, 0.62)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 9,
-  },
   tapHintCoreConfirm: {
     color: "#50250E",
-    textShadowColor: "rgba(255, 255, 255, 0.55)",
+    textShadowColor: "transparent",
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
+    textShadowRadius: 0,
   },
   triplePyramidWrap: {
     position: "relative",
@@ -3294,12 +3339,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     alignItems: "center",
   },
-  triplePyramidCardsLayer: {
+  triplePyramidTopRow: {
     width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  triplePyramidBottomRow: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  tripleHintWrap: {
     position: "relative",
+    alignSelf: "center",
+    marginTop: 0,
+    marginBottom: spacing.xs,
+  },
+  tripleHintText: {
+    color: "#50250E",
+    textShadowColor: "rgba(80, 37, 14, 0.28)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    backgroundColor: "transparent",
   },
   tripleMiniCard: {
-    position: "absolute",
     borderRadius: radii.lg,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
@@ -3309,19 +3374,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
-  },
-  triplePyramidHint: {
-    textAlign: "center",
-    color: "#50250E",
-    fontFamily: appFontFamily,
-    fontSize: Math.round((typography.subtitle + 1) * 1.2),
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xs,
-    textShadowColor: "rgba(255, 255, 255, 0.45)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   triplePyramidMenuRow: {
     width: "100%",
@@ -3347,7 +3399,7 @@ const styles = StyleSheet.create({
   },
   tripleExpandedBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(12, 9, 8, 0.62)",
+    backgroundColor: "rgba(12, 9, 8, 0.76)",
   },
   tripleExpandedPanel: {
     width: "100%",
@@ -3380,6 +3432,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
+    textDecorationLine: "underline",
     marginBottom: spacing.sm,
     fontFamily: appFontFamily,
   },
@@ -3392,8 +3445,8 @@ const styles = StyleSheet.create({
   },
   tripleExpandedBackText: {
     color: "#50250E",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 17,
+    lineHeight: 24,
     fontFamily: appFontFamily,
     textAlign: "center",
   },
@@ -3418,7 +3471,19 @@ const styles = StyleSheet.create({
   tripleExpandedActionLabel: {
     color: "#50250E",
     letterSpacing: 0.25,
-    fontSize: 16,
+    fontSize: 17.6,
+  },
+  tripleExpandedReadMoreHint: {
+    color: "#f7dbc2",
+    fontFamily: appFontFamily,
+    fontSize: Math.round(typography.subtitle * 1.45),
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.45)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    marginBottom: spacing.xs,
   },
   cardWrapper: {
     position: "relative",
@@ -3449,7 +3514,7 @@ const styles = StyleSheet.create({
   cardActionLabel: {
     color: "#50250E",
     letterSpacing: 0.3,
-    fontSize: 18,
+    fontSize: 19.8,
   },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
@@ -3465,10 +3530,27 @@ const styles = StyleSheet.create({
   readMoreHintSmall: {
     fontSize: Math.round(typography.subtitle * 3 * 0.7),
   },
+  readMoreHintSingle: {
+    fontSize: Math.round(typography.subtitle * 3 * 0.525),
+  },
+  readMoreHintPlain: {
+    textShadowColor: "transparent",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 0,
+  },
   readMoreHintWrap: {
     position: "relative",
     alignSelf: "center",
     marginTop: spacing.sm + 5,
+  },
+  singleBannerReadMoreWrap: {
+    alignSelf: "center",
+    marginTop: -Math.round(spacing.sm * 0.5),
+    marginBottom: Math.round(spacing.sm * 0.5),
+  },
+  readMoreHintWrapAboveCard: {
+    marginTop: 0,
+    marginBottom: spacing.sm + 5,
   },
   readMoreHintLayer: {
     position: "absolute",
@@ -3553,14 +3635,15 @@ const styles = StyleSheet.create({
     color: "#50250E",
     fontSize: Math.round(22 * 1.3),
     fontStyle: "italic",
+    textDecorationLine: "underline",
     marginBottom: spacing.xs,
     textAlign: "center",
   },
   detailBodyText: {
     fontFamily: detailFontFamily,
     color: "#50250E",
-    fontSize: Math.round(16 * 1.3),
-    lineHeight: Math.round(23 * 1.3),
+    fontSize: 17,
+    lineHeight: 24,
     marginBottom: spacing.sm,
     textAlign: "center",
   },
@@ -3575,8 +3658,8 @@ const styles = StyleSheet.create({
   detailBulletText: {
     fontFamily: detailFontFamily,
     color: "#50250E",
-    fontSize: Math.round(16 * 1.3),
-    lineHeight: Math.round(23 * 1.3),
+    fontSize: 17,
+    lineHeight: 24,
     marginBottom: spacing.xs,
     textAlign: "center",
   },
@@ -3890,6 +3973,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
+    textDecorationLine: "underline",
     marginBottom: spacing.sm,
     fontFamily: appFontFamily,
   },
@@ -4009,7 +4093,7 @@ const styles = StyleSheet.create({
   journalCloseLabel: {
     color: "#50250E",
     letterSpacing: 0.3,
-    fontSize: 18,
+    fontSize: 19.8,
   },
   journalInput: {
     width: "94%",
