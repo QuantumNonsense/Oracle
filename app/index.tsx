@@ -360,7 +360,6 @@ export default function Index() {
     null,
   );
   const tapHintAnim = useRef(new Animated.Value(0)).current;
-  const readMoreAnim = useRef(new Animated.Value(0)).current;
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -421,6 +420,23 @@ export default function Index() {
       }),
     }),
     [shuffleButtonPress],
+  );
+  const tapPromptPulseStyle = useMemo(
+    () => ({
+      opacity: tapHintAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.86, 1],
+      }),
+      transform: [
+        {
+          scale: tapHintAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 1.02],
+          }),
+        },
+      ],
+    }),
+    [tapHintAnim],
   );
   const detailLines = useMemo(
     () => buildDetailLines(currentCard),
@@ -1781,13 +1797,13 @@ export default function Index() {
       Animated.sequence([
         Animated.timing(tapHintAnim, {
           toValue: 1,
-          duration: isConfirmOpen ? 700 : 900,
+          duration: 700,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(tapHintAnim, {
           toValue: 0,
-          duration: isConfirmOpen ? 700 : 900,
+          duration: 700,
           easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -1795,28 +1811,7 @@ export default function Index() {
     );
     anim.start();
     return () => anim.stop();
-  }, [isConfirmOpen, tapHintAnim]);
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(readMoreAnim, {
-          toValue: 1,
-          duration: 520,
-          easing: Easing.out(Easing.back(1.6)),
-          useNativeDriver: true,
-        }),
-        Animated.timing(readMoreAnim, {
-          toValue: 0,
-          duration: 520,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [readMoreAnim]);
+  }, [tapHintAnim]);
 
   useEffect(() => {
     if (currentCard) {
@@ -2101,20 +2096,7 @@ export default function Index() {
                     styles.readMoreHint,
                     styles.readMoreHintSingle,
                     styles.readMoreHintPlain,
-                    {
-                      opacity: readMoreAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.78, 1],
-                      }),
-                      transform: [
-                        {
-                          scale: readMoreAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.98, 1.07],
-                          }),
-                        },
-                      ],
-                    },
+                    tapPromptPulseStyle,
                   ]}
                 >
                   Tap to read more
@@ -2128,20 +2110,7 @@ export default function Index() {
                     styles.tapHint,
                     isConfirmOpen ? styles.tapHintConfirm : null,
                     isConfirmOpen ? styles.tapHintCoreConfirm : null,
-                    {
-                      opacity: tapHintAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: isConfirmOpen ? [0.86, 1] : [0.75, 1],
-                      }),
-                      transform: [
-                        {
-                          scale: tapHintAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: isConfirmOpen ? [1, 1.02] : [1, 1],
-                          }),
-                        },
-                      ],
-                    },
+                    tapPromptPulseStyle,
                   ]}
                 >
                   {isConfirmOpen
@@ -2163,20 +2132,7 @@ export default function Index() {
                       styles.readMoreHint,
                       styles.readMoreHintSmall,
                       styles.tripleHintText,
-                      {
-                        opacity: readMoreAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.78, 1],
-                        }),
-                        transform: [
-                          {
-                            scale: readMoreAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.98, 1.06],
-                            }),
-                          },
-                        ],
-                      },
+                      tapPromptPulseStyle,
                     ]}
                   >
                     Tap a card to expand
@@ -2288,20 +2244,7 @@ export default function Index() {
                         styles.readMoreHintSmall,
                         styles.readMoreHintLayer,
                         styles.readMoreHintGlowFar,
-                        {
-                          opacity: readMoreAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.24, 0.68],
-                          }),
-                          transform: [
-                            {
-                              scale: readMoreAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [1, 1.11],
-                              }),
-                            },
-                          ],
-                        },
+                        tapPromptPulseStyle,
                       ]}
                     >
                       Tap to read more
@@ -2313,20 +2256,7 @@ export default function Index() {
                         styles.readMoreHintSmall,
                         styles.readMoreHintLayer,
                         styles.readMoreHintGlowNear,
-                        {
-                          opacity: readMoreAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.36, 0.92],
-                          }),
-                          transform: [
-                            {
-                              scale: readMoreAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.99, 1.08],
-                              }),
-                            },
-                          ],
-                        },
+                        tapPromptPulseStyle,
                       ]}
                     >
                       Tap to read more
@@ -2336,20 +2266,7 @@ export default function Index() {
                         styles.readMoreHint,
                         styles.readMoreHintSmall,
                         styles.readMoreHintCore,
-                        {
-                          opacity: readMoreAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.78, 1],
-                          }),
-                          transform: [
-                            {
-                              scale: readMoreAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.98, 1.07],
-                              }),
-                            },
-                          ],
-                        },
+                        tapPromptPulseStyle,
                       ]}
                     >
                       Tap to read more
@@ -2610,20 +2527,7 @@ export default function Index() {
                         <Animated.Text
                           style={[
                             styles.tripleExpandedReadMoreHint,
-                            {
-                              opacity: readMoreAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.78, 1],
-                              }),
-                              transform: [
-                                {
-                                  scale: readMoreAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [0.98, 1.06],
-                                  }),
-                                },
-                              ],
-                            },
+                            tapPromptPulseStyle,
                           ]}
                         >
                           Tap to read more
