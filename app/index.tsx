@@ -3702,8 +3702,8 @@ const styles = StyleSheet.create({
   },
   shuffleButton: {
     alignSelf: "center",
-    width: Math.round(180 * 1.75),
-    height: Math.round(66 * 1.75),
+    width: Math.round(180 * 1.75 * 0.85),
+    height: Math.round(66 * 1.75 * 0.85),
     marginTop: -50,
     alignItems: "center",
     justifyContent: "center",
