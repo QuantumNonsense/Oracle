@@ -10,7 +10,8 @@ import {
   type ViewStyle,
   View,
 } from "react-native";
-import { colors, radii, shadow } from "../theme";
+import { colors, shadow } from "../theme";
+import { CARD_ASPECT_RATIO, CARD_CORNER_RADIUS } from "../lib/cardLayout";
 
 type CardFlipProps = {
   front: ReactNode;
@@ -23,7 +24,6 @@ type CardFlipProps = {
 };
 
 const enableIdleBreathDefault = true;
-
 const runParallel = (animations: Animated.CompositeAnimation[]) =>
   new Promise<void>((resolve) => {
     Animated.parallel(animations).start(() => resolve());
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
     ...shadow.glow,
   },
   cardFrame: {
-    aspectRatio: 2 / 3,
+    aspectRatio: CARD_ASPECT_RATIO,
   },
   card3d: {
     width: "100%",
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    borderRadius: radii.lg,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backfaceVisibility: "hidden",
     backgroundColor: "transparent",

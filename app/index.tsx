@@ -40,6 +40,11 @@ import {
 } from "../src/decks/defaultDeck";
 import { drawNext, shuffle, type DeckState } from "../src/lib/deck";
 import { getFanSlots } from "../src/lib/fanLayout";
+import {
+  CARD_ASPECT_RATIO,
+  CARD_CORNER_RADIUS,
+  CARD_HEIGHT_RATIO,
+} from "../src/lib/cardLayout";
 import CardFlip from "../src/components/CardFlip";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
@@ -74,7 +79,6 @@ const DETAIL_TEXT_LINE_STAGGER_MS = 220;
 const FAN_SELECTION_ANIMATION_MS = 350;
 const SHUFFLE_BUTTON_PRESS_IN_DURATION_MS = 120;
 const SHUFFLE_BUTTON_PRESS_OUT_DURATION_MS = 170;
-
 const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
@@ -292,7 +296,8 @@ export default function Index() {
   );
   const journalExpandedCardWidth = Math.min(
     windowWidth - insets.left - insets.right - spacing.lg * 2,
-    (windowHeight - insets.top - insets.bottom - spacing.xl * 2) / 1.5,
+    (windowHeight - insets.top - insets.bottom - spacing.xl * 2) /
+      CARD_HEIGHT_RATIO,
     420,
   );
   const [deckState, setDeckState] = useState<DeckState>({
@@ -1733,7 +1738,10 @@ export default function Index() {
     () => Math.min(cardWidth * 0.55, 160),
     [cardWidth],
   );
-  const fanCardHeight = useMemo(() => fanCardWidth * 1.5, [fanCardWidth]);
+  const fanCardHeight = useMemo(
+    () => fanCardWidth * CARD_HEIGHT_RATIO,
+    [fanCardWidth],
+  );
   // Align fan visual center with the fan container center.
   const fanBaseY = useMemo(() => spacing.lg * 1.125 - 50, []);
   const [fanOffsetY, setFanOffsetY] = useState(88);
@@ -1895,7 +1903,7 @@ export default function Index() {
     [windowHeight],
   );
   const tripleMiniCardHeight = useMemo(
-    () => tripleMiniCardWidth * 1.5,
+    () => tripleMiniCardWidth * CARD_HEIGHT_RATIO,
     [tripleMiniCardWidth],
   );
   const openExpandedTripleCard = useCallback(
@@ -2231,7 +2239,7 @@ export default function Index() {
                     styles.cardArea,
                     {
                       width: cardWidth,
-                      aspectRatio: 2 / 3,
+                      aspectRatio: CARD_ASPECT_RATIO,
                     },
                   ]}
                 />
@@ -2305,7 +2313,7 @@ export default function Index() {
                     style={[
                       styles.detailOverlayFloat,
                       styles.detailOverlayLayer,
-                      { height: cardWidth * 1.5 },
+                      { height: cardWidth * CARD_HEIGHT_RATIO },
                     ]}
                   >
                     {detailFullNode}
@@ -2611,7 +2619,7 @@ export default function Index() {
                           styles.tripleExpandedCard,
                           {
                             width: cardWidth * 1.05,
-                            height: cardWidth * 1.5 * 1.05,
+                            height: cardWidth * CARD_HEIGHT_RATIO * 1.05,
                           },
                         ]}
                       />
@@ -2784,7 +2792,8 @@ export default function Index() {
                               styles.journalCardPreviewButton,
                               {
                                 width: journalPreviewCardWidth,
-                                height: journalPreviewCardWidth * 1.5,
+                                height:
+                                  journalPreviewCardWidth * CARD_HEIGHT_RATIO,
                               },
                             ]}
                             accessibilityRole="button"
@@ -2915,7 +2924,8 @@ export default function Index() {
                           styles.journalCardExpandedCard,
                           {
                             width: journalExpandedCardWidth,
-                            height: journalExpandedCardWidth * 1.5,
+                            height:
+                              journalExpandedCardWidth * CARD_HEIGHT_RATIO,
                           },
                         ]}
                       />
@@ -3366,7 +3376,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   tripleMiniCard: {
-    borderRadius: radii.lg,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
     ...shadow.soft,
@@ -3593,7 +3603,7 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     left: 0,
-    borderRadius: radii.lg,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
   },
   detailOverlayLayer: {
@@ -3674,7 +3684,7 @@ const styles = StyleSheet.create({
   fanCard: {
     position: "absolute",
     left: 0,
-    borderRadius: radii.lg,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
   },
@@ -3928,7 +3938,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   journalCardPreviewButton: {
-    borderRadius: radii.lg,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
   },
   journalCardPreviewImage: {
@@ -4154,8 +4164,8 @@ const styles = StyleSheet.create({
   detailImageWrap: {
     width: "100%",
     maxWidth: 340,
-    aspectRatio: 2 / 3,
-    borderRadius: radii.lg,
+    aspectRatio: CARD_ASPECT_RATIO,
+    borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
