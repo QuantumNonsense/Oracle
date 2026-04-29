@@ -71,8 +71,7 @@ const SHUFFLE_TOTAL_DURATION =
   SHUFFLE_TIMING.SWIRL_DURATION +
   SHUFFLE_TIMING.SWIRL_RESET_DURATION +
   SHUFFLE_TIMING.EXPAND_DURATION;
-const CARD_FLIP_DURATION_MS = 380;
-const IOS_DETAIL_OVERLAY_HOLD_MS = 180;
+const CARD_FLIP_DURATION_MS = 440;
 const DETAIL_TEXT_BLANK_MS = 100;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
@@ -368,7 +367,7 @@ export default function Index() {
   const detailContentSwapTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
-  const iosDetailOverlayHoldTimeoutRef = useRef<ReturnType<
+  const iosDetailOverlayDelayTimeoutRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
   const cardInteractionLockTimeoutRef = useRef<ReturnType<
@@ -385,7 +384,8 @@ export default function Index() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioLoadVersionRef = useRef(0);
   const [isCardInteractionLocked, setIsCardInteractionLocked] = useState(false);
-  const [isIosDetailOverlayHeld, setIsIosDetailOverlayHeld] = useState(false);
+  const [isIosDetailOverlayVisible, setIsIosDetailOverlayVisible] =
+    useState(false);
   const backNode = useMemo(
     () => <Image source={cardBackImage} style={styles.cardImage} />,
     [],
@@ -831,9 +831,9 @@ export default function Index() {
       clearTimeout(detailContentSwapTimeoutRef.current);
       detailContentSwapTimeoutRef.current = null;
     }
-    if (iosDetailOverlayHoldTimeoutRef.current) {
-      clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
-      iosDetailOverlayHoldTimeoutRef.current = null;
+    if (iosDetailOverlayDelayTimeoutRef.current) {
+      clearTimeout(iosDetailOverlayDelayTimeoutRef.current);
+      iosDetailOverlayDelayTimeoutRef.current = null;
     }
     if (cardInteractionLockTimeoutRef.current) {
       clearTimeout(cardInteractionLockTimeoutRef.current);
@@ -841,7 +841,7 @@ export default function Index() {
     }
     isCardTransitioningRef.current = false;
     setIsCardInteractionLocked(false);
-    setIsIosDetailOverlayHeld(false);
+    setIsIosDetailOverlayVisible(false);
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
     selectionAnim.setValue(0);
@@ -1009,9 +1009,9 @@ export default function Index() {
         clearTimeout(detailContentSwapTimeoutRef.current);
         detailContentSwapTimeoutRef.current = null;
       }
-      if (iosDetailOverlayHoldTimeoutRef.current) {
-        clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
-        iosDetailOverlayHoldTimeoutRef.current = null;
+      if (iosDetailOverlayDelayTimeoutRef.current) {
+        clearTimeout(iosDetailOverlayDelayTimeoutRef.current);
+        iosDetailOverlayDelayTimeoutRef.current = null;
       }
       if (cardInteractionLockTimeoutRef.current) {
         clearTimeout(cardInteractionLockTimeoutRef.current);
@@ -1022,30 +1022,19 @@ export default function Index() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== "ios") {
-      setIsIosDetailOverlayHeld(false);
+    if (iosDetailOverlayDelayTimeoutRef.current) {
+      clearTimeout(iosDetailOverlayDelayTimeoutRef.current);
+      iosDetailOverlayDelayTimeoutRef.current = null;
+    }
+    if (Platform.OS !== "ios" || !currentCard || !isDetailMode || !isFront) {
+      setIsIosDetailOverlayVisible(false);
       return;
     }
-    if (iosDetailOverlayHoldTimeoutRef.current) {
-      clearTimeout(iosDetailOverlayHoldTimeoutRef.current);
-      iosDetailOverlayHoldTimeoutRef.current = null;
-    }
-    if (!currentCard || !isDetailMode) {
-      setIsIosDetailOverlayHeld(false);
-      return;
-    }
-    if (isFront) {
-      setIsIosDetailOverlayHeld(true);
-      return;
-    }
-    if (!isIosDetailOverlayHeld) {
-      return;
-    }
-    iosDetailOverlayHoldTimeoutRef.current = setTimeout(() => {
-      setIsIosDetailOverlayHeld(false);
-      iosDetailOverlayHoldTimeoutRef.current = null;
-    }, IOS_DETAIL_OVERLAY_HOLD_MS);
-  }, [currentCard, isDetailMode, isFront, isIosDetailOverlayHeld]);
+    iosDetailOverlayDelayTimeoutRef.current = setTimeout(() => {
+      setIsIosDetailOverlayVisible(true);
+      iosDetailOverlayDelayTimeoutRef.current = null;
+    }, CARD_FLIP_DURATION_MS);
+  }, [currentCard, isDetailMode, isFront]);
 
   const clearCardInteractionLock = useCallback(() => {
     if (cardInteractionLockTimeoutRef.current) {
@@ -1718,7 +1707,7 @@ export default function Index() {
   const showIosDetachedDetailOverlay =
     Platform.OS === "ios" &&
     isDetailMode &&
-    (isFront || isIosDetailOverlayHeld);
+    isIosDetailOverlayVisible;
   const canFavorite = currentCard?.type === "card";
   const formattedHistory = useMemo(
     () =>

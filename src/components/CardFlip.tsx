@@ -24,6 +24,7 @@ type CardFlipProps = {
 };
 
 const enableIdleBreathDefault = true;
+const FLIP_DURATION_MS = 440;
 const runParallel = (animations: Animated.CompositeAnimation[]) =>
   new Promise<void>((resolve) => {
     Animated.parallel(animations).start(() => resolve());
@@ -59,10 +60,11 @@ export default function CardFlip({
   }, [isFront]);
 
   useEffect(() => {
+    flip.stopAnimation();
     Animated.timing(flip, {
       toValue: isFront ? 180 : 0,
-      duration: 380,
-      easing: Easing.out(Easing.cubic),
+      duration: FLIP_DURATION_MS,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [flip, isFront]);
@@ -119,9 +121,15 @@ export default function CardFlip({
       return {
         transform: [
           {
+            translateY: flip.interpolate({
+              inputRange: [0, 90, 180],
+              outputRange: [0, -4, 0],
+            }),
+          },
+          {
             scale: flip.interpolate({
               inputRange: [0, 90, 180],
-              outputRange: [1, 0.985, 1],
+              outputRange: [1, 1.012, 1],
             }),
           },
         ],
@@ -140,46 +148,77 @@ export default function CardFlip({
     };
   }, [flip, ios]);
 
-  const frontOpacity = useMemo(() => {
+  const iosBackFlipStyle = useMemo(() => {
     if (!ios) {
-      return 1;
+      return null;
     }
-    return flip.interpolate({
-      inputRange: [0, 89.5, 90, 180],
-      outputRange: [0, 0, 1, 1],
-    });
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 78, 90, 180],
+        outputRange: [1, 1, 0, 0],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 82, 90, 180],
+            outputRange: [1, 0.14, 0.075, 0.075],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
   }, [flip, ios]);
 
-  const backOpacity = useMemo(() => {
+  const iosFrontFlipStyle = useMemo(() => {
     if (!ios) {
-      return 1;
+      return null;
     }
-    return flip.interpolate({
-      inputRange: [0, 89.5, 90, 180],
-      outputRange: [1, 1, 0, 0],
-    });
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 90, 102, 180],
+        outputRange: [0, 0, 1, 1],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 90, 98, 180],
+            outputRange: [0.075, 0.075, 0.14, 1],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
   }, [flip, ios]);
 
-  const iosBackScaleX = useMemo(() => {
+  const iosEdgeStyle = useMemo(() => {
     if (!ios) {
-      return 1;
+      return null;
     }
-    return flip.interpolate({
-      inputRange: [0, 90],
-      outputRange: [1, 0.06],
-      extrapolate: "clamp",
-    });
-  }, [flip, ios]);
-
-  const iosFrontScaleX = useMemo(() => {
-    if (!ios) {
-      return 1;
-    }
-    return flip.interpolate({
-      inputRange: [90, 180],
-      outputRange: [0.06, 1],
-      extrapolate: "clamp",
-    });
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 68, 86, 96, 114, 180],
+        outputRange: [0, 0, 0.38, 0.86, 0, 0],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          translateY: flip.interpolate({
+            inputRange: [0, 90, 180],
+            outputRange: [0, -1, 0],
+            extrapolate: "clamp",
+          }),
+        },
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 90, 180],
+            outputRange: [0.012, 0.064, 0.012],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
   }, [flip, ios]);
 
   const cardPresenceStyle = useMemo(
@@ -335,17 +374,18 @@ export default function CardFlip({
               {back}
             </View>
           ) : null}
+          {ios ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.card, styles.iosCardEdge, iosEdgeStyle]}
+            />
+          ) : null}
           <Animated.View
             pointerEvents={isFront ? "none" : "auto"}
             style={[
               styles.card,
               styles.cardBack,
-              ios
-                ? {
-                    opacity: backOpacity,
-                    transform: [{ scaleX: iosBackScaleX }],
-                  }
-                : null,
+              iosBackFlipStyle,
             ]}
           >
             {back}
@@ -355,12 +395,7 @@ export default function CardFlip({
             style={[
               styles.card,
               styles.cardFront,
-              ios
-                ? {
-                    opacity: frontOpacity,
-                    transform: [{ scaleX: iosFrontScaleX }],
-                  }
-                : null,
+              iosFrontFlipStyle,
             ]}
           >
             {front}
@@ -425,5 +460,11 @@ const styles = StyleSheet.create({
       ? { backgroundColor: "transparent" }
       : { backgroundColor: colors.surface }),
     zIndex: 1,
+  },
+  iosCardEdge: {
+    backgroundColor: colors.secondary,
+    borderColor: "rgba(80, 37, 14, 0.24)",
+    borderWidth: 1,
+    zIndex: 3,
   },
 });
