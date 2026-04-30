@@ -3310,7 +3310,7 @@ const styles = StyleSheet.create({
     fontSize: Math.round((typography.subtitle + 2) * 1.3),
     fontFamily: appFontFamily,
     fontWeight: "800",
-    color: "#50250E",
+    color: "#2b0a00",
     textAlign: "center",
     letterSpacing: 0.6,
     textShadowColor: "rgba(255, 255, 255, 0.5)",
@@ -3327,7 +3327,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   tapHintCoreConfirm: {
-    color: "#50250E",
+    color: "#2b0a00",
     textShadowColor: "transparent",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 0,
@@ -3358,7 +3358,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   tripleHintText: {
-    color: "#50250E",
+    color: "#2b0a00",
     textShadowColor: "rgba(80, 37, 14, 0.28)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -3428,7 +3428,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   tripleExpandedBackTitle: {
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
@@ -3444,7 +3444,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   tripleExpandedBackText: {
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 17,
     lineHeight: 24,
     fontFamily: appFontFamily,
@@ -3469,7 +3469,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tripleExpandedActionLabel: {
-    color: "#50250E",
+    color: "#2b0a00",
     letterSpacing: 0.25,
     fontSize: 17.6,
   },
@@ -3512,14 +3512,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardActionLabel: {
-    color: "#50250E",
+    color: "#2b0a00",
     letterSpacing: 0.3,
     fontSize: 19.8,
   },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
     fontFamily: appFontFamily,
-    color: "#50250E",
+    color: "#2b0a00",
     textAlign: "center",
     letterSpacing: 0.4,
     textShadowColor: "rgba(255, 255, 255, 0.58)",
@@ -3571,7 +3571,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 11,
   },
   readMoreHintCore: {
-    color: "#50250E",
+    color: "#2b0a00",
     textShadowColor: "rgba(255, 255, 255, 0.58)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 7,
@@ -3625,14 +3625,14 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.2)",
   },
   detailBackButtonText: {
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 12,
     fontWeight: "600",
     fontFamily: appFontFamily,
   },
   detailTitleText: {
     fontFamily: detailFontFamilyBold,
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: Math.round(22 * 1.3),
     fontStyle: "italic",
     textDecorationLine: "underline",
@@ -3641,7 +3641,7 @@ const styles = StyleSheet.create({
   },
   detailBodyText: {
     fontFamily: detailFontFamily,
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 17,
     lineHeight: 24,
     marginBottom: spacing.sm,
@@ -3649,7 +3649,7 @@ const styles = StyleSheet.create({
   },
   detailHeadingText: {
     fontFamily: detailFontFamilyBold,
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: Math.round(17 * 1.3),
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
@@ -3657,7 +3657,7 @@ const styles = StyleSheet.create({
   },
   detailBulletText: {
     fontFamily: detailFontFamily,
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 17,
     lineHeight: 24,
     marginBottom: spacing.xs,
@@ -3969,7 +3969,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   journalCardExpandedBackTitle: {
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 16,
     fontWeight: "700",
     textAlign: "center",
@@ -3985,7 +3985,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   journalCardExpandedBackText: {
-    color: "#50250E",
+    color: "#2b0a00",
     fontSize: 13,
     lineHeight: 18,
     fontFamily: appFontFamily,
@@ -4091,7 +4091,7 @@ const styles = StyleSheet.create({
     marginTop: "auto",
   },
   journalCloseLabel: {
-    color: "#50250E",
+    color: "#2b0a00",
     letterSpacing: 0.3,
     fontSize: 19.8,
   },
