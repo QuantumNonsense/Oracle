@@ -2086,20 +2086,6 @@ export default function Index() {
                 setBannerLayout({ y, height });
               }}
             />
-            {currentCard && drawMode === "single" && !isDetailMode ? (
-              <View style={styles.singleBannerReadMoreWrap}>
-                <Animated.Text
-                  style={[
-                    styles.readMoreHint,
-                    styles.readMoreHintSingle,
-                    styles.readMoreHintPlain,
-                    tapPromptPulseStyle,
-                  ]}
-                >
-                  Tap to read more
-                </Animated.Text>
-              </View>
-            ) : null}
             {!currentCard ? (
               <View style={styles.tapHintWrap}>
                 <Animated.Text
@@ -2232,44 +2218,6 @@ export default function Index() {
                     },
                   ]}
                 />
-                {!isDetailMode && drawMode !== "single" ? (
-                  <View style={styles.readMoreHintWrap}>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.readMoreHint,
-                        styles.readMoreHintSmall,
-                        styles.readMoreHintLayer,
-                        styles.readMoreHintGlowFar,
-                        tapPromptPulseStyle,
-                      ]}
-                    >
-                      Tap to read more
-                    </Animated.Text>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.readMoreHint,
-                        styles.readMoreHintSmall,
-                        styles.readMoreHintLayer,
-                        styles.readMoreHintGlowNear,
-                        tapPromptPulseStyle,
-                      ]}
-                    >
-                      Tap to read more
-                    </Animated.Text>
-                    <Animated.Text
-                      style={[
-                        styles.readMoreHint,
-                        styles.readMoreHintSmall,
-                        styles.readMoreHintCore,
-                        tapPromptPulseStyle,
-                      ]}
-                    >
-                      Tap to read more
-                    </Animated.Text>
-                  </View>
-                ) : null}
                 {canSwipeTripleCards ? (
                   <View style={styles.swipeHintWrap}>
                     <Text style={styles.swipeHint}>
@@ -2278,21 +2226,62 @@ export default function Index() {
                     <Text style={styles.swipeHintSub}>Swipe left/right</Text>
                   </View>
                 ) : null}
+                {!isDetailMode ? (
+                  <View style={[styles.cardActions, styles.cardPromptActions]}>
+                    <ThemedButton
+                      label="Flip"
+                      onPress={handleCardTap}
+                      variant="secondary"
+                      disabled={isCardInteractionLocked}
+                      style={[
+                        styles.cardActionButton,
+                        styles.cardPromptFlipButton,
+                      ]}
+                      labelStyle={styles.cardActionLabel}
+                    />
+                  </View>
+                ) : null}
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
                     <ThemedButton
                       label="Home"
                       onPress={resetApp}
                       variant="ghost"
-                      style={styles.cardActionButton}
-                      labelStyle={styles.cardActionLabel}
+                      style={[
+                        styles.cardActionButton,
+                        styles.cardDetailActionButton,
+                      ]}
+                      labelStyle={[
+                        styles.cardActionLabel,
+                        styles.cardDetailActionLabel,
+                      ]}
+                    />
+                    <ThemedButton
+                      label="Flip"
+                      onPress={handleCardTap}
+                      variant="secondary"
+                      disabled={isCardInteractionLocked}
+                      style={[
+                        styles.cardActionButton,
+                        styles.cardDetailActionButton,
+                      ]}
+                      labelStyle={[
+                        styles.cardActionLabel,
+                        styles.cardDetailActionLabel,
+                      ]}
                     />
                     <ThemedButton
                       label="Journal"
                       onPress={openJournal}
                       variant="secondary"
-                      style={styles.cardActionButton}
-                      labelStyle={styles.cardActionLabel}
+                      style={[
+                        styles.cardActionButton,
+                        styles.cardDetailActionButton,
+                      ]}
+                      labelStyle={[
+                        styles.cardActionLabel,
+                        styles.cardDetailActionLabel,
+                      ]}
                     />
                   </View>
                 ) : null}
@@ -2520,16 +2509,6 @@ export default function Index() {
                 >
                   {expandedTripleCard ? (
                     <>
-                      {isExpandedTripleFront ? (
-                        <Animated.Text
-                          style={[
-                            styles.tripleExpandedReadMoreHint,
-                            tapPromptPulseStyle,
-                          ]}
-                        >
-                          Tap to read more
-                        </Animated.Text>
-                      ) : null}
                       <CardFlip
                         isFront={isExpandedTripleFront}
                         onBeforeFlip={handleExpandedTripleFlip}
@@ -2621,6 +2600,17 @@ export default function Index() {
                         <ThemedButton
                           label="Journal"
                           onPress={openJournalFromExpandedTriple}
+                          variant="secondary"
+                          style={styles.tripleExpandedActionButton}
+                          labelStyle={styles.tripleExpandedActionLabel}
+                        />
+                        <ThemedButton
+                          label="Flip"
+                          onPress={
+                            isExpandedTripleFront
+                              ? handleExpandedTripleFlip
+                              : handleExpandedTripleTitlePress
+                          }
                           variant="secondary"
                           style={styles.tripleExpandedActionButton}
                           labelStyle={styles.tripleExpandedActionLabel}
@@ -3473,25 +3463,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.25,
     fontSize: 17.6,
   },
-  tripleExpandedReadMoreHint: {
-    color: "#f7dbc2",
-    fontFamily: appFontFamily,
-    fontSize: Math.round(typography.subtitle * 1.45),
-    fontWeight: "800",
-    letterSpacing: 0.4,
-    textAlign: "center",
-    textShadowColor: "rgba(0, 0, 0, 0.45)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    marginBottom: spacing.xs,
-  },
   cardWrapper: {
     position: "relative",
     alignItems: "center",
   },
   cardActions: {
-    width: "80%",
-    maxWidth: 280,
+    width: "100%",
+    maxWidth: 340,
     alignSelf: "center",
     flexDirection: "row",
     justifyContent: "space-between",
@@ -3516,6 +3494,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontSize: 19.8,
   },
+  cardDetailActionButton: {
+    paddingHorizontal: spacing.sm,
+  },
+  cardDetailActionLabel: {
+    fontSize: 18,
+  },
+  cardPromptActions: {
+    justifyContent: "center",
+  },
+  cardPromptFlipButton: {
+    flex: 0,
+    minWidth: 156,
+    paddingHorizontal: spacing.xl,
+  },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
     fontFamily: appFontFamily,
@@ -3529,52 +3521,6 @@ const styles = StyleSheet.create({
   },
   readMoreHintSmall: {
     fontSize: Math.round(typography.subtitle * 3 * 0.7),
-  },
-  readMoreHintSingle: {
-    fontSize: Math.round(typography.subtitle * 3 * 0.525),
-  },
-  readMoreHintPlain: {
-    textShadowColor: "transparent",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 0,
-  },
-  readMoreHintWrap: {
-    position: "relative",
-    alignSelf: "center",
-    marginTop: spacing.sm + 5,
-  },
-  singleBannerReadMoreWrap: {
-    alignSelf: "center",
-    marginTop: -Math.round(spacing.sm * 0.5),
-    marginBottom: Math.round(spacing.sm * 0.5),
-  },
-  readMoreHintWrapAboveCard: {
-    marginTop: 0,
-    marginBottom: spacing.sm + 5,
-  },
-  readMoreHintLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  readMoreHintGlowFar: {
-    color: "rgba(255, 255, 255, 0.45)",
-    textShadowColor: "rgba(255, 255, 255, 0.45)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
-  },
-  readMoreHintGlowNear: {
-    color: "rgba(255, 255, 255, 0.62)",
-    textShadowColor: "rgba(255, 255, 255, 0.62)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 11,
-  },
-  readMoreHintCore: {
-    color: "#2b0a00",
-    textShadowColor: "rgba(255, 255, 255, 0.58)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 7,
   },
   cardArea: {
     marginBottom: 0,
