@@ -2203,7 +2203,7 @@ export default function Index() {
                 {!isTripleExpandedOpen ? (
                   <View style={styles.triplePyramidMenuRow}>
                     <ThemedButton
-                      label="Menu"
+                      label="Home"
                       onPress={resetApp}
                       variant="secondary"
                       style={styles.triplePyramidMenuButton}
@@ -2281,7 +2281,7 @@ export default function Index() {
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
                     <ThemedButton
-                      label="Menu"
+                      label="Home"
                       onPress={resetApp}
                       variant="ghost"
                       style={styles.cardActionButton}
