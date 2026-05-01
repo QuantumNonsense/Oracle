@@ -75,6 +75,8 @@ const CARD_FLIP_DURATION_MS = 440;
 const DEFAULT_AUTO_FLIP_BACK_HOLD_MS = 140;
 const SINGLE_CARD_CONFIRM_BACK_HOLD_MS = 650;
 const SINGLE_CARD_GROW_DURATION_MS = 520;
+const SINGLE_CARD_TRANSITION_HANDOFF_MS = 420;
+const SINGLE_CARD_TRANSITION_FADE_MS = 140;
 const DETAIL_TEXT_BLANK_MS = 100;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
@@ -368,8 +370,16 @@ export default function Index() {
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const shuffleButtonPress = useRef(new Animated.Value(0)).current;
   const singleCardGrowAnim = useRef(new Animated.Value(0)).current;
+  const singleCardTransitionOpacityAnim = useRef(
+    new Animated.Value(1),
+  ).current;
   const singleCardGrowAnimationRef =
     useRef<Animated.CompositeAnimation | null>(null);
+  const singleCardTransitionFadeAnimationRef =
+    useRef<Animated.CompositeAnimation | null>(null);
+  const singleCardTransitionClearTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const detailLineAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const detailFlipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -516,10 +526,17 @@ export default function Index() {
   const cancelSingleCardTransition = useCallback(() => {
     singleCardGrowAnimationRef.current?.stop();
     singleCardGrowAnimationRef.current = null;
+    singleCardTransitionFadeAnimationRef.current?.stop();
+    singleCardTransitionFadeAnimationRef.current = null;
+    if (singleCardTransitionClearTimeoutRef.current) {
+      clearTimeout(singleCardTransitionClearTimeoutRef.current);
+      singleCardTransitionClearTimeoutRef.current = null;
+    }
     singleCardGrowAnim.setValue(0);
+    singleCardTransitionOpacityAnim.setValue(1);
     isSingleCardTransitioningRef.current = false;
     setSingleCardTransitionSlot(null);
-  }, [singleCardGrowAnim]);
+  }, [singleCardGrowAnim, singleCardTransitionOpacityAnim]);
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
@@ -1021,6 +1038,12 @@ export default function Index() {
     return () => {
       singleCardGrowAnimationRef.current?.stop();
       singleCardGrowAnimationRef.current = null;
+      singleCardTransitionFadeAnimationRef.current?.stop();
+      singleCardTransitionFadeAnimationRef.current = null;
+      if (singleCardTransitionClearTimeoutRef.current) {
+        clearTimeout(singleCardTransitionClearTimeoutRef.current);
+        singleCardTransitionClearTimeoutRef.current = null;
+      }
       if (detailFlipTimeoutRef.current) {
         clearTimeout(detailFlipTimeoutRef.current);
         detailFlipTimeoutRef.current = null;
@@ -1512,7 +1535,14 @@ export default function Index() {
           if (transitionSlot !== null && fanLayout) {
             isSingleCardTransitioningRef.current = true;
             singleCardGrowAnimationRef.current?.stop();
+            singleCardTransitionFadeAnimationRef.current?.stop();
+            singleCardTransitionFadeAnimationRef.current = null;
+            if (singleCardTransitionClearTimeoutRef.current) {
+              clearTimeout(singleCardTransitionClearTimeoutRef.current);
+              singleCardTransitionClearTimeoutRef.current = null;
+            }
             singleCardGrowAnim.setValue(0);
+            singleCardTransitionOpacityAnim.setValue(1);
             setSingleCardTransitionSlot(transitionSlot);
             const animation = Animated.timing(singleCardGrowAnim, {
               toValue: 1,
@@ -1536,8 +1566,28 @@ export default function Index() {
               setSelectedSlot(null);
               setSelectedSlots([]);
               drawNextCard(true);
-              setSingleCardTransitionSlot(null);
-              singleCardGrowAnim.setValue(0);
+              singleCardTransitionClearTimeoutRef.current = setTimeout(() => {
+                singleCardTransitionClearTimeoutRef.current = null;
+                const fadeAnimation = Animated.timing(
+                  singleCardTransitionOpacityAnim,
+                  {
+                    toValue: 0,
+                    duration: SINGLE_CARD_TRANSITION_FADE_MS,
+                    easing: Easing.out(Easing.quad),
+                    useNativeDriver: true,
+                  },
+                );
+                singleCardTransitionFadeAnimationRef.current = fadeAnimation;
+                fadeAnimation.start(({ finished }) => {
+                  singleCardTransitionFadeAnimationRef.current = null;
+                  if (!finished) {
+                    return;
+                  }
+                  setSingleCardTransitionSlot(null);
+                  singleCardGrowAnim.setValue(0);
+                  singleCardTransitionOpacityAnim.setValue(1);
+                });
+              }, SINGLE_CARD_TRANSITION_HANDOFF_MS);
             });
             return;
           }
@@ -1584,6 +1634,7 @@ export default function Index() {
       selectedSlots,
       selectionAnim,
       singleCardGrowAnim,
+      singleCardTransitionOpacityAnim,
     ],
   );
 
@@ -1985,6 +2036,34 @@ export default function Index() {
     fanCardWidth,
     fanLayout,
     fanSlots,
+    singleCardGrowAnim,
+    singleCardTransitionSlot,
+  ]);
+  const singleCardTransitionUnderlayStyle = useMemo(() => {
+    if (singleCardTransitionSlot === null || !fanLayout) {
+      return null;
+    }
+    const targetLeft = fanAreaCenterX - cardWidth / 2;
+    const targetTop = bannerLayout
+      ? bannerLayout.y + bannerLayout.height + spacing.xs
+      : fanLayout.y;
+
+    return {
+      left: targetLeft,
+      top: targetTop,
+      width: cardWidth,
+      height: cardWidth * CARD_HEIGHT_RATIO,
+      opacity: singleCardGrowAnim.interpolate({
+        inputRange: [0, 0.9, 1],
+        outputRange: [0, 0, 1],
+        extrapolate: "clamp",
+      }),
+    };
+  }, [
+    bannerLayout,
+    cardWidth,
+    fanAreaCenterX,
+    fanLayout,
     singleCardGrowAnim,
     singleCardTransitionSlot,
   ]);
@@ -2591,14 +2670,34 @@ export default function Index() {
               <Animated.View
                 pointerEvents="none"
                 style={[
-                  styles.singleCardTransitionCard,
-                  singleCardTransitionStyle,
+                  styles.singleCardTransitionLayer,
+                  { opacity: singleCardTransitionOpacityAnim },
                 ]}
               >
-                <Image
-                  source={cardBackImage}
-                  style={styles.singleCardTransitionImage}
-                />
+                {singleCardTransitionUnderlayStyle ? (
+                  <Animated.View
+                    style={[
+                      styles.singleCardTransitionUnderlay,
+                      singleCardTransitionUnderlayStyle,
+                    ]}
+                  >
+                    <Image
+                      source={cardBackImage}
+                      style={styles.singleCardTransitionImage}
+                    />
+                  </Animated.View>
+                ) : null}
+                <Animated.View
+                  style={[
+                    styles.singleCardTransitionCard,
+                    singleCardTransitionStyle,
+                  ]}
+                >
+                  <Image
+                    source={cardBackImage}
+                    style={styles.singleCardTransitionImage}
+                  />
+                </Animated.View>
               </Animated.View>
             ) : null}
             <View
@@ -3748,9 +3847,20 @@ const styles = StyleSheet.create({
     height: "100%",
     resizeMode: "cover",
   },
+  singleCardTransitionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 12,
+  },
   singleCardTransitionCard: {
     position: "absolute",
-    zIndex: 12,
+    zIndex: 2,
+    borderRadius: CARD_CORNER_RADIUS,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceAlt,
+  },
+  singleCardTransitionUnderlay: {
+    position: "absolute",
+    zIndex: 1,
     borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
