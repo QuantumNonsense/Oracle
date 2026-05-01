@@ -82,7 +82,6 @@ const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
-const AUDIO_ENABLED_KEY = "oracle:audio-enabled:v1";
 const MUSIC_TRACKS = [
   require("../assets/Music/Mosslight.Whispers.mp3"),
   require("../assets/Music/Mosslight.Whispers.2.mp3"),
@@ -317,7 +316,7 @@ export default function Index() {
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
@@ -382,7 +381,7 @@ export default function Index() {
   const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
-  const isAudioEnabledRef = useRef(true);
+  const isAudioEnabledRef = useRef(false);
   const activeTrackIndexRef = useRef(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const audioLoadVersionRef = useRef(0);
@@ -706,26 +705,19 @@ export default function Index() {
     setIsAudioEnabled((prev) => {
       const next = !prev;
       isAudioEnabledRef.current = next;
-      void storage.setItem(AUDIO_ENABLED_KEY, JSON.stringify(next));
       return next;
     });
   }, []);
 
   useEffect(() => {
     const loadState = async () => {
-      const [
-        storedFavorites,
-        storedLast,
-        storedHistory,
-        storedJournals,
-        storedAudioEnabled,
-      ] = await Promise.all([
-        storage.getItem(FAVORITES_KEY),
-        storage.getItem(LAST_CARD_KEY),
-        storage.getItem(HISTORY_KEY),
-        storage.getItem(JOURNAL_KEY),
-        storage.getItem(AUDIO_ENABLED_KEY),
-      ]);
+      const [storedFavorites, storedLast, storedHistory, storedJournals] =
+        await Promise.all([
+          storage.getItem(FAVORITES_KEY),
+          storage.getItem(LAST_CARD_KEY),
+          storage.getItem(HISTORY_KEY),
+          storage.getItem(JOURNAL_KEY),
+        ]);
 
       if (storedFavorites) {
         try {
@@ -749,12 +741,6 @@ export default function Index() {
 
       if (storedJournals) {
         setJournalEntries(parseStoredJournals(storedJournals));
-      }
-
-      if (storedAudioEnabled !== null) {
-        const nextEnabled = storedAudioEnabled === "true";
-        isAudioEnabledRef.current = nextEnabled;
-        setIsAudioEnabled(nextEnabled);
       }
     };
 
