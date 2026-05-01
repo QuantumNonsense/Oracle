@@ -277,7 +277,10 @@ export default function Index() {
   const shuffleImage = require("../assets/Shuffle.png");
   const scrollImage = require("../assets/Scroll.png");
   const musicToggleIcon = require("../assets/music.png");
+  const noMusicToggleIcon = require("../assets/nomusic.png");
   const journalToggleIcon = require("../assets/journal.png");
+  const singleDrawToggleIcon = require("../assets/1card.png");
+  const tripleDrawToggleIcon = require("../assets/3cards.png");
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const journalComposeWidth = Math.min(
@@ -3058,18 +3061,15 @@ export default function Index() {
         style={({ pressed }) => [
           styles.audioToggle,
           {
-            left: spacing.md + insets.left,
+            left: spacing.md + insets.left + 20,
             bottom: spacing.xs + insets.bottom,
           },
           pressed ? styles.audioTogglePressed : null,
         ]}
       >
         <Image
-          source={musicToggleIcon}
-          style={[
-            styles.audioToggleIcon,
-            !isAudioEnabled ? styles.audioToggleIconMuted : null,
-          ]}
+          source={isAudioEnabled ? noMusicToggleIcon : musicToggleIcon}
+          style={styles.audioToggleIcon}
         />
       </Pressable>
       {!currentCard ? (
@@ -3102,7 +3102,7 @@ export default function Index() {
           style={({ pressed }) => [
             styles.drawModeToggle,
             {
-              right: spacing.md + insets.right,
+              right: spacing.md + insets.right + 20,
               bottom: spacing.xs + insets.bottom,
             },
             drawMode === "triple" ? styles.drawModeToggleActive : null,
@@ -3110,27 +3110,12 @@ export default function Index() {
             pressed && canSwitchDrawMode ? styles.audioTogglePressed : null,
           ]}
         >
-          <View style={styles.drawModeIconWrap}>
-            {drawMode === "single" ? (
-              [0, 1, 2].map((layer) => (
-                <Image
-                  key={`draw-mode-card-${layer}`}
-                  source={cardBackImage}
-                  style={[
-                    styles.drawModeIconCard,
-                    layer === 0 ? styles.drawModeCardLeft : null,
-                    layer === 1 ? styles.drawModeCardCenter : null,
-                    layer === 2 ? styles.drawModeCardRight : null,
-                  ]}
-                />
-              ))
-            ) : (
-              <Image
-                source={cardBackImage}
-                style={[styles.drawModeIconCard, styles.drawModeSingleCard]}
-              />
-            )}
-          </View>
+          <Image
+            source={
+              drawMode === "single" ? tripleDrawToggleIcon : singleDrawToggleIcon
+            }
+            style={styles.drawModeToggleIcon}
+          />
         </Pressable>
       ) : null}
     </View>
@@ -3183,46 +3168,19 @@ const styles = StyleSheet.create({
   drawModeToggleLocked: {
     opacity: 0.5,
   },
-  drawModeIconWrap: {
-    width: 44,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    transform: [{ scale: 1.2 }],
-  },
-  drawModeIconCard: {
-    position: "absolute",
-    width: 16,
-    height: 24,
-    borderRadius: 2,
-    resizeMode: "cover",
-  },
-  drawModeCardLeft: {
-    transform: [{ translateX: -9 }, { rotate: "-18deg" }],
-  },
-  drawModeCardCenter: {
-    transform: [{ translateY: -2 }],
-  },
-  drawModeCardRight: {
-    transform: [{ translateX: 9 }, { rotate: "18deg" }],
-  },
-  drawModeSingleCard: {
-    width: 18,
-    height: 27,
-    transform: [{ translateY: -1 }],
+  drawModeToggleIcon: {
+    width: 78.4,
+    height: 76.8,
+    resizeMode: "contain",
   },
   audioTogglePressed: {
     transform: [{ scale: 0.96 }],
     opacity: 0.88,
   },
   audioToggleIcon: {
-    width: 110,
-    height: 110,
+    width: 88,
+    height: 88,
     resizeMode: "contain",
-  },
-  audioToggleIconMuted: {
-    opacity: 0.55,
   },
   journalToggleIcon: {
     width: 140,
