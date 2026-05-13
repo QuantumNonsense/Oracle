@@ -77,6 +77,10 @@ const SINGLE_CARD_CONFIRM_BACK_HOLD_MS = 650;
 const SINGLE_CARD_GROW_DURATION_MS = 520;
 const SINGLE_CARD_TRANSITION_HANDOFF_MS = 420;
 const SINGLE_CARD_TRANSITION_FADE_MS = 140;
+const TRIPLE_CARD_GROW_DURATION_MS = 620;
+const TRIPLE_CARD_REVEAL_DELAY_MS = 120;
+const TRIPLE_CARD_HANDOFF_HOLD_MS = 90;
+const TRIPLE_CARD_HANDOFF_FADE_MS = 150;
 const DETAIL_TEXT_BLANK_MS = 100;
 const DETAIL_TEXT_LINE_REVEAL_MS = 1400;
 const DETAIL_TEXT_LINE_STAGGER_MS = 220;
@@ -118,6 +122,11 @@ type LayoutFrame = {
 type FlipPair = {
   back: ReactNode;
   front: ReactNode;
+};
+
+type TripleCardTransition = {
+  slots: number[];
+  cards: Card[];
 };
 
 type DrawMode = "single" | "triple";
@@ -229,6 +238,72 @@ const buildCardDetailText = (card: Card | null) => {
       return line.text;
     })
     .join("\n\n");
+};
+
+const getTripleTransitionBackStyle = (flip: Animated.Value) => {
+  if (Platform.OS === "ios") {
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 0.43, 0.5, 1],
+        outputRange: [1, 1, 0, 0],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 0.43, 0.5, 1],
+            outputRange: [1, 0.14, 0.075, 0.075],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
+  }
+
+  return {
+    transform: [
+      { perspective: 1000 },
+      {
+        rotateY: flip.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["0deg", "180deg"],
+        }),
+      },
+    ],
+  };
+};
+
+const getTripleTransitionFrontStyle = (flip: Animated.Value) => {
+  if (Platform.OS === "ios") {
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 0.5, 0.57, 1],
+        outputRange: [0, 0, 1, 1],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 0.5, 0.57, 1],
+            outputRange: [0.075, 0.075, 0.14, 1],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
+  }
+
+  return {
+    transform: [
+      { perspective: 1000 },
+      {
+        rotateY: flip.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["180deg", "360deg"],
+        }),
+      },
+    ],
+  };
 };
 
 const parseStoredJournals = (raw: string): JournalEntry[] => {
@@ -350,11 +425,16 @@ export default function Index() {
   const [tripleCardFrontById, setTripleCardFrontById] = useState<
     Record<string, boolean>
   >({});
+  const [tripleCardTransition, setTripleCardTransition] =
+    useState<TripleCardTransition | null>(null);
+  const [isTripleCardHandoffVisible, setIsTripleCardHandoffVisible] =
+    useState(false);
   const [fanSize, setFanSize] = useState<FanSize | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [autoFlipNext, setAutoFlipNext] = useState(false);
   const [layoutWidth, setLayoutWidth] = useState<number | null>(null);
   const [bannerLayout, setBannerLayout] = useState<LayoutFrame | null>(null);
+  const [tapHintLayout, setTapHintLayout] = useState<LayoutFrame | null>(null);
   const [fanLayout, setFanLayout] = useState<LayoutFrame | null>(null);
   const lastLayoutWidthRef = useRef<number | null>(null);
   const selectionAnim = useRef(new Animated.Value(0)).current;
@@ -373,9 +453,20 @@ export default function Index() {
   const singleCardTransitionOpacityAnim = useRef(
     new Animated.Value(1),
   ).current;
+  const tripleCardGrowAnim = useRef(new Animated.Value(0)).current;
+  const tripleCardTransitionOpacityAnim = useRef(
+    new Animated.Value(1),
+  ).current;
+  const tripleCardFlipAnimsRef = useRef<Animated.Value[]>(
+    Array.from({ length: 3 }, () => new Animated.Value(0)),
+  );
   const singleCardGrowAnimationRef =
     useRef<Animated.CompositeAnimation | null>(null);
   const singleCardTransitionFadeAnimationRef =
+    useRef<Animated.CompositeAnimation | null>(null);
+  const tripleCardTransitionAnimationRef =
+    useRef<Animated.CompositeAnimation | null>(null);
+  const tripleCardTransitionFadeAnimationRef =
     useRef<Animated.CompositeAnimation | null>(null);
   const singleCardTransitionClearTimeoutRef = useRef<ReturnType<
     typeof setTimeout
@@ -398,6 +489,7 @@ export default function Index() {
   const selectedSlotRef = useRef<number | null>(null);
   const isConfirmOpenRef = useRef(false);
   const isSingleCardTransitioningRef = useRef(false);
+  const isTripleCardTransitioningRef = useRef(false);
   const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
@@ -523,6 +615,13 @@ export default function Index() {
       value.setValue(0);
     });
   }, []);
+  const getTripleCardFlipAnim = useCallback((index: number) => {
+    const values = tripleCardFlipAnimsRef.current;
+    while (values.length <= index) {
+      values.push(new Animated.Value(0));
+    }
+    return values[index];
+  }, []);
   const cancelSingleCardTransition = useCallback(() => {
     singleCardGrowAnimationRef.current?.stop();
     singleCardGrowAnimationRef.current = null;
@@ -537,6 +636,21 @@ export default function Index() {
     isSingleCardTransitioningRef.current = false;
     setSingleCardTransitionSlot(null);
   }, [singleCardGrowAnim, singleCardTransitionOpacityAnim]);
+  const cancelTripleCardTransition = useCallback(() => {
+    tripleCardTransitionAnimationRef.current?.stop();
+    tripleCardTransitionAnimationRef.current = null;
+    tripleCardTransitionFadeAnimationRef.current?.stop();
+    tripleCardTransitionFadeAnimationRef.current = null;
+    tripleCardGrowAnim.setValue(0);
+    tripleCardTransitionOpacityAnim.setValue(1);
+    tripleCardFlipAnimsRef.current.forEach((value) => {
+      value.stopAnimation();
+      value.setValue(0);
+    });
+    isTripleCardTransitioningRef.current = false;
+    setIsTripleCardHandoffVisible(false);
+    setTripleCardTransition(null);
+  }, [tripleCardGrowAnim, tripleCardTransitionOpacityAnim]);
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
@@ -847,6 +961,7 @@ export default function Index() {
     shuffleAnimRef.current?.stop();
     detailLineAnimRef.current?.stop();
     cancelSingleCardTransition();
+    cancelTripleCardTransition();
     if (detailFlipTimeoutRef.current) {
       clearTimeout(detailFlipTimeoutRef.current);
       detailFlipTimeoutRef.current = null;
@@ -890,6 +1005,8 @@ export default function Index() {
     setExpandedTripleCardIndex(null);
     setIsExpandedTripleFront(true);
     setTripleCardFrontById({});
+    setTripleCardTransition(null);
+    setIsTripleCardHandoffVisible(false);
     setIsConfirmOpen(false);
     setAutoFlipNext(false);
     setSingleCardTransitionSlot(null);
@@ -908,6 +1025,7 @@ export default function Index() {
   }, [
     fanCollapse,
     cancelSingleCardTransition,
+    cancelTripleCardTransition,
     resetSingleSelectionAnims,
     resetTripleSelectionAnims,
     selectionAnim,
@@ -965,6 +1083,191 @@ export default function Index() {
     },
     [persistLastCard, recordHistory],
   );
+
+  const completeTripleCardTransition = useCallback(
+    (transition: TripleCardTransition) => {
+      setTripleCards(transition.cards);
+      setActiveTripleCardIndex(0);
+      setExpandedTripleCardIndex(null);
+      setIsExpandedTripleFront(true);
+      setTripleCardFrontById(
+        transition.cards.reduce<Record<string, boolean>>((acc, card) => {
+          acc[card.id] = true;
+          return acc;
+        }, {}),
+      );
+      setCurrentCard(transition.cards[0] ?? null);
+      setFlipPair(null);
+      setIsFront(true);
+      setIsDetailMode(false);
+      setAutoFlipNext(false);
+      selectionAnim.setValue(0);
+      resetSingleSelectionAnims();
+      resetTripleSelectionAnims();
+      selectedSlotRef.current = null;
+      isConfirmOpenRef.current = false;
+      setIsConfirmOpen(false);
+      setSelectedSlot(null);
+      setSelectedSlots([]);
+      setIsTripleCardHandoffVisible(true);
+      tripleCardTransitionFadeAnimationRef.current?.stop();
+      const fadeAnimation = Animated.sequence([
+        Animated.delay(TRIPLE_CARD_HANDOFF_HOLD_MS),
+        Animated.timing(tripleCardTransitionOpacityAnim, {
+          toValue: 0,
+          duration: TRIPLE_CARD_HANDOFF_FADE_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]);
+      tripleCardTransitionFadeAnimationRef.current = fadeAnimation;
+      fadeAnimation.start(({ finished }) => {
+        if (tripleCardTransitionFadeAnimationRef.current === fadeAnimation) {
+          tripleCardTransitionFadeAnimationRef.current = null;
+        }
+        if (!finished) {
+          return;
+        }
+        isTripleCardTransitioningRef.current = false;
+        setTripleCardTransition(null);
+        setIsTripleCardHandoffVisible(false);
+        tripleCardTransitionOpacityAnim.setValue(1);
+      });
+    },
+    [
+      resetSingleSelectionAnims,
+      resetTripleSelectionAnims,
+      selectionAnim,
+      tripleCardTransitionOpacityAnim,
+    ],
+  );
+
+  const startTripleCardTransition = useCallback(
+    (slots: number[]) => {
+      const transitionSlots = slots.slice(0, 3);
+      if (transitionSlots.length !== 3) {
+        drawTripleCards(true);
+        return;
+      }
+
+      tripleCardTransitionAnimationRef.current?.stop();
+      tripleCardTransitionAnimationRef.current = null;
+      tripleCardTransitionFadeAnimationRef.current?.stop();
+      tripleCardTransitionFadeAnimationRef.current = null;
+      tripleCardGrowAnim.setValue(0);
+      tripleCardTransitionOpacityAnim.setValue(1);
+      tripleCardFlipAnimsRef.current.forEach((value) => {
+        value.stopAnimation();
+        value.setValue(0);
+      });
+      isTripleCardTransitioningRef.current = true;
+      setIsTripleCardHandoffVisible(false);
+      setTripleCards([]);
+      setCurrentCard(null);
+      setFlipPair(null);
+      setIsFront(false);
+      setIsDetailMode(false);
+      setExpandedTripleCardIndex(null);
+      setIsExpandedTripleFront(true);
+      setTripleCardFrontById({});
+      setAutoFlipNext(false);
+
+      setDeckState((prev) => {
+        let nextState = prev;
+        const drawnCards: Card[] = [];
+        for (let i = 0; i < 3; i += 1) {
+          const result = drawNext(nextState);
+          nextState = result.state;
+          drawnCards.push(result.card);
+        }
+        setTripleCardTransition({
+          slots: transitionSlots,
+          cards: drawnCards,
+        });
+        drawnCards.forEach((card) => {
+          recordHistory(card);
+        });
+        if (drawnCards[0]) {
+          persistLastCard(drawnCards[0]);
+        }
+        return nextState;
+      });
+    },
+    [
+      drawTripleCards,
+      persistLastCard,
+      recordHistory,
+      tripleCardGrowAnim,
+      tripleCardTransitionOpacityAnim,
+    ],
+  );
+
+  useEffect(() => {
+    if (!tripleCardTransition) {
+      return;
+    }
+
+    const flipValues = [0, 1, 2].map((index) =>
+      getTripleCardFlipAnim(index),
+    );
+    tripleCardGrowAnim.setValue(0);
+    flipValues.forEach((value) => {
+      value.stopAnimation();
+      value.setValue(0);
+    });
+
+    const animation = Animated.sequence([
+      Animated.timing(tripleCardGrowAnim, {
+        toValue: 1,
+        duration: TRIPLE_CARD_GROW_DURATION_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.delay(TRIPLE_CARD_REVEAL_DELAY_MS),
+      Animated.timing(flipValues[0], {
+        toValue: 1,
+        duration: CARD_FLIP_DURATION_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.delay(TRIPLE_CARD_REVEAL_DELAY_MS),
+      Animated.timing(flipValues[1], {
+        toValue: 1,
+        duration: CARD_FLIP_DURATION_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.delay(TRIPLE_CARD_REVEAL_DELAY_MS),
+      Animated.timing(flipValues[2], {
+        toValue: 1,
+        duration: CARD_FLIP_DURATION_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    tripleCardTransitionAnimationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (tripleCardTransitionAnimationRef.current === animation) {
+        tripleCardTransitionAnimationRef.current = null;
+      }
+      if (finished) {
+        completeTripleCardTransition(tripleCardTransition);
+      }
+    });
+
+    return () => {
+      if (tripleCardTransitionAnimationRef.current === animation) {
+        animation.stop();
+        tripleCardTransitionAnimationRef.current = null;
+      }
+    };
+  }, [
+    completeTripleCardTransition,
+    getTripleCardFlipAnim,
+    tripleCardGrowAnim,
+    tripleCardTransition,
+  ]);
 
   useEffect(() => {
     if (!currentCard || !autoFlipNext) {
@@ -1040,6 +1343,10 @@ export default function Index() {
       singleCardGrowAnimationRef.current = null;
       singleCardTransitionFadeAnimationRef.current?.stop();
       singleCardTransitionFadeAnimationRef.current = null;
+      tripleCardTransitionAnimationRef.current?.stop();
+      tripleCardTransitionAnimationRef.current = null;
+      tripleCardTransitionFadeAnimationRef.current?.stop();
+      tripleCardTransitionFadeAnimationRef.current = null;
       if (singleCardTransitionClearTimeoutRef.current) {
         clearTimeout(singleCardTransitionClearTimeoutRef.current);
         singleCardTransitionClearTimeoutRef.current = null;
@@ -1061,6 +1368,7 @@ export default function Index() {
         cardInteractionLockTimeoutRef.current = null;
       }
       isSingleCardTransitioningRef.current = false;
+      isTripleCardTransitioningRef.current = false;
       isCardTransitioningRef.current = false;
     };
   }, []);
@@ -1120,6 +1428,7 @@ export default function Index() {
 
   const shuffleDeck = useCallback(() => {
     cancelSingleCardTransition();
+    cancelTripleCardTransition();
     setDeckState((prev) => ({
       ...prev,
       order: shuffle(prev.cards),
@@ -1136,12 +1445,15 @@ export default function Index() {
     setExpandedTripleCardIndex(null);
     setIsExpandedTripleFront(true);
     setTripleCardFrontById({});
+    setTripleCardTransition(null);
+    setIsTripleCardHandoffVisible(false);
     setIsConfirmOpen(false);
     selectionAnim.setValue(0);
     resetSingleSelectionAnims();
     resetTripleSelectionAnims();
   }, [
     cancelSingleCardTransition,
+    cancelTripleCardTransition,
     resetSingleSelectionAnims,
     resetTripleSelectionAnims,
     selectionAnim,
@@ -1357,6 +1669,9 @@ export default function Index() {
     if (isShuffling) {
       return;
     }
+    if (isTripleCardTransitioningRef.current) {
+      return;
+    }
     if (detailFlipTimeoutRef.current) {
       clearTimeout(detailFlipTimeoutRef.current);
       detailFlipTimeoutRef.current = null;
@@ -1372,10 +1687,12 @@ export default function Index() {
     setExpandedTripleCardIndex(null);
     setIsExpandedTripleFront(true);
     cancelSingleCardTransition();
+    cancelTripleCardTransition();
     clearCardInteractionLock();
     startShuffle();
   }, [
     cancelSingleCardTransition,
+    cancelTripleCardTransition,
     clearCardInteractionLock,
     isShuffling,
     startShuffle,
@@ -1594,15 +1911,15 @@ export default function Index() {
         }
         selectionAnim.setValue(0);
         resetSingleSelectionAnims();
-        resetTripleSelectionAnims();
-        isConfirmOpenRef.current = false;
-        selectedSlotRef.current = null;
-        setIsConfirmOpen(false);
-        setSelectedSlot(null);
-        setSelectedSlots([]);
         if (drawMode === "triple") {
-          drawTripleCards(true);
+          startTripleCardTransition(selectedSlots);
         } else {
+          resetTripleSelectionAnims();
+          isConfirmOpenRef.current = false;
+          selectedSlotRef.current = null;
+          setIsConfirmOpen(false);
+          setSelectedSlot(null);
+          setSelectedSlots([]);
           drawNextCard(true);
         }
         return;
@@ -1627,9 +1944,9 @@ export default function Index() {
       resetSingleSelectionAnims,
       drawMode,
       drawNextCard,
-      drawTripleCards,
       fanLayout,
       resetTripleSelectionAnims,
+      startTripleCardTransition,
       selectedSlot,
       selectedSlots,
       selectionAnim,
@@ -1646,20 +1963,15 @@ export default function Index() {
       if (isSingleCardTransitioningRef.current) {
         return;
       }
+      if (isTripleCardTransitioningRef.current) {
+        return;
+      }
       if (drawMode === "triple") {
         const alreadySelected = selectedSlots.includes(slotIndex);
-        if (isConfirmOpen && alreadySelected && selectedSlots.length === 3) {
-          handleConfirmSelection(true);
-          return;
-        }
         if (alreadySelected) {
           animateTripleSelectionSlot(slotIndex, 0);
           const next = selectedSlots.filter((slot) => slot !== slotIndex);
           setSelectedSlots(next);
-          if (next.length < 3) {
-            selectionAnim.setValue(0);
-            setIsConfirmOpen(false);
-          }
           return;
         }
         if (selectedSlots.length >= 3) {
@@ -1669,13 +1981,7 @@ export default function Index() {
         const next = [...selectedSlots, slotIndex];
         setSelectedSlots(next);
         if (next.length === 3) {
-          setIsConfirmOpen(true);
-          Animated.timing(selectionAnim, {
-            toValue: 1,
-            duration: FAN_SELECTION_ANIMATION_MS,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }).start();
+          startTripleCardTransition(next);
         }
         return;
       }
@@ -1708,11 +2014,9 @@ export default function Index() {
       animateSingleSelectionSlot,
       animateTripleSelectionSlot,
       drawMode,
-      isConfirmOpen,
       isShuffling,
-      selectionAnim,
-      selectedSlot,
       selectedSlots,
+      startTripleCardTransition,
     ],
   );
 
@@ -1721,7 +2025,8 @@ export default function Index() {
     selectedSlot === null &&
     selectedSlots.length === 0 &&
     !isConfirmOpen &&
-    !isShuffling;
+    !isShuffling &&
+    !isTripleCardTransitioningRef.current;
 
   const toggleDrawMode = useCallback(() => {
     if (!canSwitchDrawMode) {
@@ -1984,9 +2289,134 @@ export default function Index() {
     () => buildCardDetailText(currentCard),
     [currentCard],
   );
-  const showTriplePyramid = drawMode === "triple" && tripleCards.length === 3;
+  const tripleMiniRowGap = useMemo(
+    () => Math.max(8, Math.min(14, Math.round(cardWidth * 0.03))),
+    [cardWidth],
+  );
+  const tripleMiniRowInset = useMemo(
+    () => Math.max(0, Math.round(cardWidth * 0.02)),
+    [cardWidth],
+  );
+  const tripleMiniCardWidth = useMemo(() => {
+    const maxByPyramid = Math.floor(
+      (cardWidth - tripleMiniRowInset * 2 - tripleMiniRowGap) / 2,
+    );
+    const baseTarget = Math.min(cardWidth * 0.31, 110);
+    const target = Math.floor(baseTarget * 1.4375);
+    return Math.max(1, Math.min(target, maxByPyramid));
+  }, [cardWidth, tripleMiniRowGap, tripleMiniRowInset]);
+  const tripleExpandedActionsOffset = useMemo(
+    () => Math.round(windowHeight * 0.05),
+    [windowHeight],
+  );
+  const tripleExpandedVerticalOffset = useMemo(
+    () => Math.round(windowHeight * 0.1),
+    [windowHeight],
+  );
+  const tripleMiniCardHeight = useMemo(
+    () => tripleMiniCardWidth * CARD_HEIGHT_RATIO,
+    [tripleMiniCardWidth],
+  );
+  const isTripleCardTransitioning = tripleCardTransition !== null;
+  const showTriplePyramid =
+    drawMode === "triple" &&
+    tripleCards.length === 3 &&
+    (!isTripleCardTransitioning || isTripleCardHandoffVisible);
   const isAutoFlipPending = Boolean(currentCard && autoFlipNext);
   const isSingleCardTransitioning = singleCardTransitionSlot !== null;
+  const tripleCardTransitionStyles = useMemo(() => {
+    if (!tripleCardTransition || !fanLayout) {
+      return null;
+    }
+
+    const targetWrapLeft = fanAreaCenterX - cardWidth / 2;
+    const targetContentWidth = cardWidth - tripleMiniRowInset * 2;
+    const topRowWidth = tripleMiniCardWidth * 2 + tripleMiniRowGap;
+    const topRowLeft =
+      targetWrapLeft +
+      tripleMiniRowInset +
+      (targetContentWidth - topRowWidth) / 2;
+    const tripleHintHeight = Math.ceil(
+      Math.round(typography.subtitle * 3 * 0.7) * 1.2,
+    );
+    const tapHintReservedHeight =
+      (tapHintLayout?.height ??
+        Math.ceil(Math.round((typography.subtitle + 2) * 1.3) * 1.2)) +
+      spacing.xs +
+      spacing.sm;
+    const targetBranchTop = fanLayout.y - tapHintReservedHeight;
+    const topRowTop =
+      targetBranchTop +
+      spacing.xs +
+      tripleHintHeight +
+      spacing.xs +
+      tripleMiniRowGap;
+    const bottomRowTop = topRowTop + tripleMiniCardHeight + tripleMiniRowGap;
+    const targetFrames = [
+      {
+        left: topRowLeft,
+        top: topRowTop,
+      },
+      {
+        left: topRowLeft + tripleMiniCardWidth + tripleMiniRowGap,
+        top: topRowTop,
+      },
+      {
+        left: targetWrapLeft + cardWidth / 2 - tripleMiniCardWidth / 2,
+        top: bottomRowTop,
+      },
+    ];
+
+    return tripleCardTransition.slots.map((slotIndex, transitionIndex) => {
+      const slot = fanSlots[slotIndex];
+      const targetFrame = targetFrames[transitionIndex];
+      if (!slot || !targetFrame) {
+        return null;
+      }
+      const sourceLeft = fanAreaCenterX + slot.x - fanCardWidth / 2;
+      const sourceTop = fanLayout.y + slot.y + fanCardHeight * 0.14;
+      return {
+        left: tripleCardGrowAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [sourceLeft, targetFrame.left],
+        }),
+        top: tripleCardGrowAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [sourceTop, targetFrame.top],
+        }),
+        width: tripleCardGrowAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [fanCardWidth, tripleMiniCardWidth],
+        }),
+        height: tripleCardGrowAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [fanCardHeight, tripleMiniCardHeight],
+        }),
+        transform: [
+          {
+            rotate: tripleCardGrowAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [`${slot.rot}deg`, "0deg"],
+            }),
+          },
+        ],
+      };
+    });
+  }, [
+    cardWidth,
+    fanAreaCenterX,
+    fanCardHeight,
+    fanCardWidth,
+    fanLayout,
+    fanSlots,
+    tapHintLayout?.height,
+    tripleCardGrowAnim,
+    tripleCardTransition,
+    tripleMiniCardHeight,
+    tripleMiniCardWidth,
+    tripleMiniRowGap,
+    tripleMiniRowInset,
+  ]);
   const singleCardTransitionStyle = useMemo(() => {
     if (singleCardTransitionSlot === null || !fanLayout) {
       return null;
@@ -2077,34 +2507,6 @@ export default function Index() {
   );
   const expandedTripleTitleLine = expandedTripleDetailLines[0];
   const expandedTripleBodyLines = expandedTripleDetailLines.slice(1);
-  const tripleMiniRowGap = useMemo(
-    () => Math.max(8, Math.min(14, Math.round(cardWidth * 0.03))),
-    [cardWidth],
-  );
-  const tripleMiniRowInset = useMemo(
-    () => Math.max(0, Math.round(cardWidth * 0.02)),
-    [cardWidth],
-  );
-  const tripleMiniCardWidth = useMemo(() => {
-    const maxByPyramid = Math.floor(
-      (cardWidth - tripleMiniRowInset * 2 - tripleMiniRowGap) / 2,
-    );
-    const baseTarget = Math.min(cardWidth * 0.31, 110);
-    const target = Math.floor(baseTarget * 1.4375);
-    return Math.max(1, Math.min(target, maxByPyramid));
-  }, [cardWidth, tripleMiniRowGap, tripleMiniRowInset]);
-  const tripleExpandedActionsOffset = useMemo(
-    () => Math.round(windowHeight * 0.05),
-    [windowHeight],
-  );
-  const tripleExpandedVerticalOffset = useMemo(
-    () => Math.round(windowHeight * 0.1),
-    [windowHeight],
-  );
-  const tripleMiniCardHeight = useMemo(
-    () => tripleMiniCardWidth * CARD_HEIGHT_RATIO,
-    [tripleMiniCardWidth],
-  );
   const openExpandedTripleCard = useCallback(
     (index: number) => {
       const card = tripleCards[index];
@@ -2298,9 +2700,15 @@ export default function Index() {
             />
             {!currentCard ? (
               <View
+                onLayout={(event) => {
+                  const { y, height } = event.nativeEvent.layout;
+                  setTapHintLayout({ y, height });
+                }}
                 style={[
                   styles.tapHintWrap,
-                  isSingleCardTransitioning ? styles.tapHintWrapHidden : null,
+                  isSingleCardTransitioning || isTripleCardTransitioning
+                    ? styles.tapHintWrapHidden
+                    : null,
                 ]}
               >
                 <Animated.Text
@@ -2322,7 +2730,11 @@ export default function Index() {
             {showTriplePyramid ? (
               <View
                 style={[styles.triplePyramidWrap, { width: cardWidth }]}
-                pointerEvents={isTripleExpandedOpen ? "none" : "auto"}
+                pointerEvents={
+                  isTripleExpandedOpen || isTripleCardTransitioning
+                    ? "none"
+                    : "auto"
+                }
               >
                 <View style={styles.tripleHintWrap}>
                   <Animated.Text
@@ -2346,13 +2758,11 @@ export default function Index() {
                     },
                   ]}
                 >
-                  {[tripleCards[0], tripleCards[2]].map((card, rowIndex) =>
+                  {[tripleCards[0], tripleCards[1]].map((card, rowIndex) =>
                     card ? (
                       <Pressable
-                        key={`triple-mini-card-top-${card.id}-${rowIndex === 0 ? 0 : 2}`}
-                        onPress={() =>
-                          openExpandedTripleCard(rowIndex === 0 ? 0 : 2)
-                        }
+                        key={`triple-mini-card-top-${card.id}-${rowIndex}`}
+                        onPress={() => openExpandedTripleCard(rowIndex)}
                         accessibilityRole="button"
                         accessibilityLabel={`Open ${card.title}`}
                         style={[
@@ -2380,12 +2790,12 @@ export default function Index() {
                     },
                   ]}
                 >
-                  {tripleCards[1] ? (
+                  {tripleCards[2] ? (
                     <Pressable
-                      key={`triple-mini-card-bottom-${tripleCards[1].id}-1`}
-                      onPress={() => openExpandedTripleCard(1)}
+                      key={`triple-mini-card-bottom-${tripleCards[2].id}-2`}
+                      onPress={() => openExpandedTripleCard(2)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Open ${tripleCards[1].title}`}
+                      accessibilityLabel={`Open ${tripleCards[2].title}`}
                       style={[
                         styles.tripleMiniCard,
                         {
@@ -2395,7 +2805,7 @@ export default function Index() {
                       ]}
                     >
                       <Image
-                        source={tripleCards[1].image}
+                        source={tripleCards[2].image}
                         style={styles.tripleMiniCardImage}
                       />
                     </Pressable>
@@ -2525,10 +2935,15 @@ export default function Index() {
                     setFanLayout({ y, height });
                   }}
                   pointerEvents={
-                    isShuffling || isSingleCardTransitioning ? "none" : "auto"
+                    isShuffling ||
+                    isSingleCardTransitioning ||
+                    isTripleCardTransitioning
+                      ? "none"
+                      : "auto"
                   }
                   style={[
                     styles.fanArea,
+                    isTripleCardTransitioning ? styles.fanAreaHidden : null,
                     {
                       width: "100%",
                       height: fanHeight,
@@ -2548,7 +2963,8 @@ export default function Index() {
                         ? selectedSlots.includes(index)
                         : selectedSlot === index;
                     const isTransitionSource =
-                      singleCardTransitionSlot === index;
+                      singleCardTransitionSlot === index ||
+                      Boolean(tripleCardTransition?.slots.includes(index));
                     const singlePullOutY = Animated.multiply(
                       getSingleSelectionAnim(index),
                       fanCardHeight * 0.18,
@@ -2666,6 +3082,57 @@ export default function Index() {
                 </View>
               </>
             )}
+            {tripleCardTransition && tripleCardTransitionStyles ? (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.tripleCardTransitionLayer,
+                  { opacity: tripleCardTransitionOpacityAnim },
+                ]}
+              >
+                {tripleCardTransition.cards.map((card, index) => {
+                  const transitionStyle = tripleCardTransitionStyles[index];
+                  if (!transitionStyle) {
+                    return null;
+                  }
+                  const flip = getTripleCardFlipAnim(index);
+                  return (
+                    <Animated.View
+                      key={`triple-transition-${card.id}-${index}`}
+                      style={[
+                        styles.tripleCardTransitionCard,
+                        transitionStyle,
+                      ]}
+                    >
+                      <Animated.View
+                        style={[
+                          styles.tripleCardTransitionFace,
+                          styles.tripleCardTransitionBackFace,
+                          getTripleTransitionBackStyle(flip),
+                        ]}
+                      >
+                        <Image
+                          source={cardBackImage}
+                          style={styles.tripleCardTransitionImage}
+                        />
+                      </Animated.View>
+                      <Animated.View
+                        style={[
+                          styles.tripleCardTransitionFace,
+                          styles.tripleCardTransitionFrontFace,
+                          getTripleTransitionFrontStyle(flip),
+                        ]}
+                      >
+                        <Image
+                          source={card.image}
+                          style={styles.tripleCardTransitionImage}
+                        />
+                      </Animated.View>
+                    </Animated.View>
+                  );
+                })}
+              </Animated.View>
+            ) : null}
             {singleCardTransitionStyle ? (
               <Animated.View
                 pointerEvents="none"
@@ -2720,6 +3187,7 @@ export default function Index() {
               {!currentCard &&
               !isConfirmOpen &&
               !isSingleCardTransitioning &&
+              !isTripleCardTransitioning &&
               tripleCards.length === 0 ? (
                 <>
                   <Pressable
@@ -3326,7 +3794,7 @@ export default function Index() {
           style={styles.audioToggleIcon}
         />
       </Pressable>
-      {!currentCard ? (
+      {!currentCard && !isTripleCardTransitioning ? (
         <Pressable
           onPress={() => setIsJournalEntriesOpen(true)}
           accessibilityRole="button"
@@ -3343,7 +3811,7 @@ export default function Index() {
           <Image source={journalToggleIcon} style={styles.journalToggleIcon} />
         </Pressable>
       ) : null}
-      {!currentCard ? (
+      {!currentCard && !isTripleCardTransitioning ? (
         <Pressable
           onPress={toggleDrawMode}
           disabled={!canSwitchDrawMode}
@@ -3832,6 +4300,9 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     marginTop: 0,
   },
+  fanAreaHidden: {
+    opacity: 0,
+  },
   fanCard: {
     position: "absolute",
     left: 0,
@@ -3843,6 +4314,35 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   fanCardImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  tripleCardTransitionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 13,
+  },
+  tripleCardTransitionCard: {
+    position: "absolute",
+    borderRadius: CARD_CORNER_RADIUS,
+    overflow: "visible",
+    ...shadow.soft,
+  },
+  tripleCardTransitionFace: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CARD_CORNER_RADIUS,
+    overflow: "hidden",
+    backfaceVisibility: "hidden",
+    backgroundColor: colors.surfaceAlt,
+  },
+  tripleCardTransitionBackFace: {
+    zIndex: 1,
+  },
+  tripleCardTransitionFrontFace: {
+    ...(Platform.OS === "ios" ? {} : { transform: [{ rotateY: "180deg" }] }),
+    zIndex: 2,
+  },
+  tripleCardTransitionImage: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
