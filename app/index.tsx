@@ -30,7 +30,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   cardBackImage,
@@ -45,6 +44,12 @@ import {
   CARD_CORNER_RADIUS,
   CARD_HEIGHT_RATIO,
 } from "../src/lib/cardLayout";
+import {
+  flushPendingDrawEvents,
+  recordDrawEvents,
+  type DrawMode,
+} from "../src/lib/drawTracking";
+import { storage } from "../src/lib/storage";
 import CardFlip from "../src/components/CardFlip";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
@@ -127,30 +132,6 @@ type FlipPair = {
 type TripleCardTransition = {
   slots: number[];
   cards: Card[];
-};
-
-type DrawMode = "single" | "triple";
-
-const storage = {
-  getItem: async (key: string) => {
-    try {
-      return await AsyncStorage.getItem(key);
-    } catch (error) {
-      if (typeof window !== "undefined") {
-        return window.localStorage.getItem(key);
-      }
-      return null;
-    }
-  },
-  setItem: async (key: string, value: string) => {
-    try {
-      await AsyncStorage.setItem(key, value);
-    } catch (error) {
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(key, value);
-      }
-    }
-  },
 };
 
 const cardsById = new Map(cards.map((card) => [card.id, card]));
@@ -386,6 +367,7 @@ export default function Index() {
     order: [],
     index: 0,
   });
+  const deckStateRef = useRef<DeckState>(deckState);
   const [currentCard, setCurrentCard] = useState<Card | null>(null);
   const [isFront, setIsFront] = useState(false);
   const [flipPair, setFlipPair] = useState<FlipPair | null>(null);
@@ -749,6 +731,10 @@ export default function Index() {
   }, [isAudioEnabled]);
 
   useEffect(() => {
+    deckStateRef.current = deckState;
+  }, [deckState]);
+
+  useEffect(() => {
     selectedSlotRef.current = selectedSlot;
   }, [selectedSlot]);
 
@@ -857,6 +843,28 @@ export default function Index() {
     });
   }, []);
 
+  const applyDeckState = useCallback((next: DeckState) => {
+    deckStateRef.current = next;
+    setDeckState(next);
+  }, []);
+
+  const drawCardsFromDeck = useCallback(
+    (count: number) => {
+      let nextState = deckStateRef.current;
+      const drawnCards: Card[] = [];
+
+      for (let i = 0; i < count; i += 1) {
+        const result = drawNext(nextState);
+        nextState = result.state;
+        drawnCards.push(result.card);
+      }
+
+      applyDeckState(nextState);
+      return drawnCards;
+    },
+    [applyDeckState],
+  );
+
   useEffect(() => {
     const loadState = async () => {
       const [storedFavorites, storedLast, storedHistory, storedJournals] =
@@ -893,22 +901,40 @@ export default function Index() {
     };
 
     void loadState();
+    void flushPendingDrawEvents();
   }, []);
 
   useEffect(() => {
     setShuffleStartRequest((prev) => prev + 1);
   }, []);
 
-  const recordHistory = useCallback((card: Card) => {
-    setHistory((prev) => {
-      const next = [
-        { id: card.id, title: card.title, drawnAt: new Date().toISOString() },
-        ...prev,
-      ].slice(0, 200);
-      void storage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
+  const recordHistory = useCallback(
+    (card: Card, drawnAt = new Date().toISOString()) => {
+      setHistory((prev) => {
+        const next = [
+          { id: card.id, title: card.title, drawnAt },
+          ...prev,
+        ].slice(0, 200);
+        void storage.setItem(HISTORY_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    [],
+  );
+
+  const recordDrawBatch = useCallback(
+    (drawnCards: Card[], drawMode: DrawMode) => {
+      if (drawnCards.length === 0) {
+        return;
+      }
+      const drawnAt = new Date().toISOString();
+      drawnCards.forEach((card) => {
+        recordHistory(card, drawnAt);
+      });
+      void recordDrawEvents(drawnCards, { drawMode, drawnAt });
+    },
+    [recordHistory],
+  );
 
   const persistLastCard = useCallback((card: Card) => {
     void storage.setItem(LAST_CARD_KEY, card.id);
@@ -987,7 +1013,7 @@ export default function Index() {
     resetSingleSelectionAnims();
     resetTripleSelectionAnims();
     fanCollapse.setValue(0);
-    setDeckState({ cards: drawableCards, order: [], index: 0 });
+    applyDeckState({ cards: drawableCards, order: [], index: 0 });
     setCurrentCard(null);
     setFlipPair(null);
     setIsFront(false);
@@ -1024,6 +1050,7 @@ export default function Index() {
     void storage.setItem(LAST_CARD_KEY, "");
   }, [
     fanCollapse,
+    applyDeckState,
     cancelSingleCardTransition,
     cancelTripleCardTransition,
     resetSingleSelectionAnims,
@@ -1037,51 +1064,40 @@ export default function Index() {
   const drawNextCard = useCallback(
     (autoFlip = false) => {
       setAutoFlipNext(autoFlip);
-      setDeckState((prev) => {
-        const result = drawNext(prev);
-        setCurrentCard(result.card);
-        recordHistory(result.card);
-        persistLastCard(result.card);
-        return result.state;
-      });
+      const [card] = drawCardsFromDeck(1);
+      if (!card) {
+        return;
+      }
+      setCurrentCard(card);
+      recordDrawBatch([card], "single");
+      persistLastCard(card);
       setIsFront(!autoFlip);
     },
-    [persistLastCard, recordHistory],
+    [drawCardsFromDeck, persistLastCard, recordDrawBatch],
   );
 
   const drawTripleCards = useCallback(
     (autoFlip = false) => {
       setAutoFlipNext(autoFlip);
-      setDeckState((prev) => {
-        let nextState = prev;
-        const drawnCards: Card[] = [];
-        for (let i = 0; i < 3; i += 1) {
-          const result = drawNext(nextState);
-          nextState = result.state;
-          drawnCards.push(result.card);
-        }
-        setTripleCards(drawnCards);
-        setActiveTripleCardIndex(0);
-        setExpandedTripleCardIndex(null);
-        setIsExpandedTripleFront(true);
-        setTripleCardFrontById(
-          drawnCards.reduce<Record<string, boolean>>((acc, card) => {
-            acc[card.id] = true;
-            return acc;
-          }, {}),
-        );
-        setCurrentCard(drawnCards[0] ?? null);
-        drawnCards.forEach((card) => {
-          recordHistory(card);
-        });
-        if (drawnCards[0]) {
-          persistLastCard(drawnCards[0]);
-        }
-        return nextState;
-      });
+      const drawnCards = drawCardsFromDeck(3);
+      setTripleCards(drawnCards);
+      setActiveTripleCardIndex(0);
+      setExpandedTripleCardIndex(null);
+      setIsExpandedTripleFront(true);
+      setTripleCardFrontById(
+        drawnCards.reduce<Record<string, boolean>>((acc, card) => {
+          acc[card.id] = true;
+          return acc;
+        }, {}),
+      );
+      setCurrentCard(drawnCards[0] ?? null);
+      recordDrawBatch(drawnCards, "triple");
+      if (drawnCards[0]) {
+        persistLastCard(drawnCards[0]);
+      }
       setIsFront(!autoFlip);
     },
-    [persistLastCard, recordHistory],
+    [drawCardsFromDeck, persistLastCard, recordDrawBatch],
   );
 
   const completeTripleCardTransition = useCallback(
@@ -1172,31 +1188,21 @@ export default function Index() {
       setTripleCardFrontById({});
       setAutoFlipNext(false);
 
-      setDeckState((prev) => {
-        let nextState = prev;
-        const drawnCards: Card[] = [];
-        for (let i = 0; i < 3; i += 1) {
-          const result = drawNext(nextState);
-          nextState = result.state;
-          drawnCards.push(result.card);
-        }
-        setTripleCardTransition({
-          slots: transitionSlots,
-          cards: drawnCards,
-        });
-        drawnCards.forEach((card) => {
-          recordHistory(card);
-        });
-        if (drawnCards[0]) {
-          persistLastCard(drawnCards[0]);
-        }
-        return nextState;
+      const drawnCards = drawCardsFromDeck(3);
+      setTripleCardTransition({
+        slots: transitionSlots,
+        cards: drawnCards,
       });
+      recordDrawBatch(drawnCards, "triple");
+      if (drawnCards[0]) {
+        persistLastCard(drawnCards[0]);
+      }
     },
     [
       drawTripleCards,
+      drawCardsFromDeck,
       persistLastCard,
-      recordHistory,
+      recordDrawBatch,
       tripleCardGrowAnim,
       tripleCardTransitionOpacityAnim,
     ],
@@ -1429,11 +1435,11 @@ export default function Index() {
   const shuffleDeck = useCallback(() => {
     cancelSingleCardTransition();
     cancelTripleCardTransition();
-    setDeckState((prev) => ({
-      ...prev,
-      order: shuffle(prev.cards),
+    applyDeckState({
+      ...deckStateRef.current,
+      order: shuffle(deckStateRef.current.cards),
       index: 0,
-    }));
+    });
     setIsFront(false);
     setCurrentCard(null);
     selectedSlotRef.current = null;
@@ -1452,6 +1458,7 @@ export default function Index() {
     resetSingleSelectionAnims();
     resetTripleSelectionAnims();
   }, [
+    applyDeckState,
     cancelSingleCardTransition,
     cancelTripleCardTransition,
     resetSingleSelectionAnims,
