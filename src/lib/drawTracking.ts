@@ -7,16 +7,23 @@ export type DrawMode = "single" | "triple";
 
 export type DrawnCard = {
   id: string;
+  title?: string;
 };
 
 export type DrawEvent = {
   id: string;
   cardId: string;
+  cardTitle?: string | null;
   deckId: string;
   drawMode: DrawMode;
   batchId: string;
   position: number;
+  selectionSlot?: number | null;
   drawnAt: string;
+  clientSessionId?: string | null;
+  clientTimezone?: string | null;
+  appVersion?: string | null;
+  isFirstDrawOfSession?: boolean;
 };
 
 export type RecordDrawOptions = {
@@ -24,13 +31,18 @@ export type RecordDrawOptions = {
   drawMode: DrawMode;
   batchId?: string;
   drawnAt?: string;
+  appVersion?: string;
+  selectionSlots?: Array<number | null | undefined>;
 };
 
 const PENDING_DRAW_EVENTS_KEY = "oracle:draw-events:pending:v1";
+const CLIENT_SESSION_ID_KEY = "oracle:client-session-id:v1";
 const DEFAULT_DECK_ID = "default";
 
 let pendingQueueWrite = Promise.resolve();
 let pendingFlush: Promise<boolean> | null = null;
+let cachedClientSessionId: string | null = null;
+let hasRecordedDrawThisSession = false;
 
 const createUuid = () =>
   "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
@@ -88,6 +100,31 @@ const withPendingQueueWrite = async <T>(work: () => Promise<T>) => {
 
 const isDev = () => typeof __DEV__ !== "undefined" && __DEV__;
 
+const getClientTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getClientSessionId = async () => {
+  if (cachedClientSessionId) {
+    return cachedClientSessionId;
+  }
+
+  const stored = await storage.getItem(CLIENT_SESSION_ID_KEY);
+  if (stored) {
+    cachedClientSessionId = stored;
+    return stored;
+  }
+
+  const next = createUuid();
+  cachedClientSessionId = next;
+  await storage.setItem(CLIENT_SESSION_ID_KEY, next);
+  return next;
+};
+
 export const buildDrawEvents = (
   cards: DrawnCard[],
   {
@@ -95,16 +132,29 @@ export const buildDrawEvents = (
     drawMode,
     batchId = createUuid(),
     drawnAt = new Date().toISOString(),
+    appVersion,
+    selectionSlots = [],
   }: RecordDrawOptions,
+  metadata: {
+    clientSessionId?: string | null;
+    clientTimezone?: string | null;
+    isFirstDrawOfSession?: boolean;
+  } = {},
 ): DrawEvent[] =>
   cards.map((card, position) => ({
     id: createUuid(),
     cardId: card.id,
+    cardTitle: card.title ?? null,
     deckId,
     drawMode,
     batchId,
     position,
+    selectionSlot: selectionSlots[position] ?? null,
     drawnAt,
+    clientSessionId: metadata.clientSessionId ?? null,
+    clientTimezone: metadata.clientTimezone ?? null,
+    appVersion: appVersion ?? null,
+    isFirstDrawOfSession: metadata.isFirstDrawOfSession ?? false,
   }));
 
 export const getPendingDrawEvents = async () =>
@@ -127,7 +177,13 @@ export const recordDrawEvents = async (
   cards: DrawnCard[],
   options: RecordDrawOptions,
 ) => {
-  const events = buildDrawEvents(cards, options);
+  const isFirstDrawOfSession = !hasRecordedDrawThisSession;
+  hasRecordedDrawThisSession = true;
+  const events = buildDrawEvents(cards, options, {
+    clientSessionId: await getClientSessionId(),
+    clientTimezone: getClientTimezone(),
+    isFirstDrawOfSession,
+  });
   await enqueueDrawEvents(events);
   void flushPendingDrawEvents();
   return events;

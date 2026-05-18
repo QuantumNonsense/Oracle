@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useFonts } from "expo-font";
 import { Audio, type AVPlaybackStatus } from "expo-av";
+import Constants from "expo-constants";
 import {
   Alert,
   Animated,
@@ -96,6 +97,7 @@ const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
+const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const MUSIC_TRACKS = [
   require("../assets/Music/Mosslight.Whispers.mp3"),
   require("../assets/Music/Mosslight.Whispers.2.mp3"),
@@ -923,7 +925,11 @@ export default function Index() {
   );
 
   const recordDrawBatch = useCallback(
-    (drawnCards: Card[], drawMode: DrawMode) => {
+    (
+      drawnCards: Card[],
+      drawMode: DrawMode,
+      selectionSlots: Array<number | null | undefined> = [],
+    ) => {
       if (drawnCards.length === 0) {
         return;
       }
@@ -931,7 +937,12 @@ export default function Index() {
       drawnCards.forEach((card) => {
         recordHistory(card, drawnAt);
       });
-      void recordDrawEvents(drawnCards, { drawMode, drawnAt });
+      void recordDrawEvents(drawnCards, {
+        appVersion: APP_VERSION,
+        drawMode,
+        drawnAt,
+        selectionSlots,
+      });
     },
     [recordHistory],
   );
@@ -1062,14 +1073,14 @@ export default function Index() {
   ]);
 
   const drawNextCard = useCallback(
-    (autoFlip = false) => {
+    (autoFlip = false, selectionSlot: number | null = null) => {
       setAutoFlipNext(autoFlip);
       const [card] = drawCardsFromDeck(1);
       if (!card) {
         return;
       }
       setCurrentCard(card);
-      recordDrawBatch([card], "single");
+      recordDrawBatch([card], "single", [selectionSlot]);
       persistLastCard(card);
       setIsFront(!autoFlip);
     },
@@ -1077,7 +1088,10 @@ export default function Index() {
   );
 
   const drawTripleCards = useCallback(
-    (autoFlip = false) => {
+    (
+      autoFlip = false,
+      selectionSlots: Array<number | null | undefined> = [],
+    ) => {
       setAutoFlipNext(autoFlip);
       const drawnCards = drawCardsFromDeck(3);
       setTripleCards(drawnCards);
@@ -1091,7 +1105,7 @@ export default function Index() {
         }, {}),
       );
       setCurrentCard(drawnCards[0] ?? null);
-      recordDrawBatch(drawnCards, "triple");
+      recordDrawBatch(drawnCards, "triple", selectionSlots);
       if (drawnCards[0]) {
         persistLastCard(drawnCards[0]);
       }
@@ -1162,7 +1176,7 @@ export default function Index() {
     (slots: number[]) => {
       const transitionSlots = slots.slice(0, 3);
       if (transitionSlots.length !== 3) {
-        drawTripleCards(true);
+        drawTripleCards(true, transitionSlots);
         return;
       }
 
@@ -1193,7 +1207,7 @@ export default function Index() {
         slots: transitionSlots,
         cards: drawnCards,
       });
-      recordDrawBatch(drawnCards, "triple");
+      recordDrawBatch(drawnCards, "triple", transitionSlots);
       if (drawnCards[0]) {
         persistLastCard(drawnCards[0]);
       }
@@ -1889,7 +1903,7 @@ export default function Index() {
               setIsConfirmOpen(false);
               setSelectedSlot(null);
               setSelectedSlots([]);
-              drawNextCard(true);
+              drawNextCard(true, transitionSlot);
               singleCardTransitionClearTimeoutRef.current = setTimeout(() => {
                 singleCardTransitionClearTimeoutRef.current = null;
                 const fadeAnimation = Animated.timing(
@@ -1921,13 +1935,14 @@ export default function Index() {
         if (drawMode === "triple") {
           startTripleCardTransition(selectedSlots);
         } else {
+          const confirmedSlot = selectedSlotRef.current ?? selectedSlot;
           resetTripleSelectionAnims();
           isConfirmOpenRef.current = false;
           selectedSlotRef.current = null;
           setIsConfirmOpen(false);
           setSelectedSlot(null);
           setSelectedSlots([]);
-          drawNextCard(true);
+          drawNextCard(true, confirmedSlot);
         }
         return;
       }
