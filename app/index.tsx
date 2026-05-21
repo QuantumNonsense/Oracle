@@ -99,6 +99,8 @@ const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
+const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
 const MUSIC_TRACKS = [
   require("../assets/Music/Mosslight.Whispers.mp3"),
   require("../assets/Music/Mosslight.Whispers.2.mp3"),
@@ -332,8 +334,24 @@ const parseStoredJournals = (raw: string): JournalEntry[] => {
   return [];
 };
 
+const shouldRenderStatsLandingPage = () => {
+  if (Platform.OS !== "web") {
+    return false;
+  }
+
+  if (IS_STATS_SITE_BUILD) {
+    return true;
+  }
+
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return STATS_SITE_HOSTNAMES.has(window.location.hostname);
+};
+
 export default function Index() {
-  if (Platform.OS === "web") {
+  if (shouldRenderStatsLandingPage()) {
     return <StatsLandingPage />;
   }
 
