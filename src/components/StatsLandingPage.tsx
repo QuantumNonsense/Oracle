@@ -44,6 +44,7 @@ const TOP_CARD_LIMIT = 10;
 const DECK_ID = "default";
 const CARD_THUMB_WIDTH = 46;
 const CARD_THUMB_HEIGHT = Math.round(CARD_THUMB_WIDTH * CARD_HEIGHT_RATIO);
+const PANEL_LIST_MAX_HEIGHT = 460;
 
 const cardTitlesById = new Map(cards.map((card) => [card.id, card.title]));
 const cardsById = new Map(cards.map((card) => [card.id, card]));
@@ -173,7 +174,12 @@ const StatsPanel = ({
           <Text style={styles.stateText}>No global draws recorded yet.</Text>
         </View>
       ) : (
-        <View style={styles.rankList}>
+        <ScrollView
+          style={styles.rankScroll}
+          contentContainerStyle={styles.rankList}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
           {data.slice(0, TOP_CARD_LIMIT).map((item, index) => {
             const card = getStatsCard(item);
             return (
@@ -208,7 +214,7 @@ const StatsPanel = ({
               </View>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -505,8 +511,12 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     textAlign: "center",
   },
+  rankScroll: {
+    maxHeight: PANEL_LIST_MAX_HEIGHT,
+  },
   rankList: {
     gap: 8,
+    paddingRight: 4,
   },
   rankRow: {
     flexDirection: "row",
