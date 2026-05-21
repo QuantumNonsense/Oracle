@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Image,
   ImageBackground,
   ScrollView,
   StyleSheet,
@@ -8,7 +9,8 @@ import {
   View,
 } from "react-native";
 
-import { cards } from "../decks/defaultDeck";
+import { cardBackImage, cards } from "../decks/defaultDeck";
+import { CARD_HEIGHT_RATIO } from "../lib/cardLayout";
 import {
   getCardDrawCounts,
   type CardDrawCount,
@@ -40,8 +42,11 @@ type LoadState =
 
 const TOP_CARD_LIMIT = 10;
 const DECK_ID = "default";
+const CARD_THUMB_WIDTH = 46;
+const CARD_THUMB_HEIGHT = Math.round(CARD_THUMB_WIDTH * CARD_HEIGHT_RATIO);
 
 const cardTitlesById = new Map(cards.map((card) => [card.id, card.title]));
+const cardsById = new Map(cards.map((card) => [card.id, card]));
 
 const startOfToday = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -93,8 +98,44 @@ const formatLastUpdated = (date: Date | null) => {
 const getDisplayTitle = (item: CardDrawCount) =>
   item.title ?? cardTitlesById.get(item.cardId) ?? item.cardId;
 
+const getStatsCard = (item: CardDrawCount) => cardsById.get(item.cardId);
+
+const getDrawTotal = (data: CardDrawCount[]) =>
+  data.reduce((total, item) => total + item.drawCount, 0);
+
 const createEmptyRanges = () =>
   buildRanges(new Date()).map((range) => ({ label: range.label, data: [] }));
+
+const SummaryStrip = ({
+  isLoading,
+  isWide,
+  ranges,
+}: {
+  isLoading: boolean;
+  isWide: boolean;
+  ranges: RangeState[];
+}) => (
+  <View style={[styles.summaryGrid, isWide && styles.summaryGridWide]}>
+    {ranges.map((range) => {
+      const total = getDrawTotal(range.data);
+      return (
+        <View key={range.label} style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>{range.label}</Text>
+          <Text style={styles.summaryValue}>
+            {isLoading ? "..." : total.toLocaleString()}
+          </Text>
+          <Text style={styles.summaryCaption}>
+            {isLoading
+              ? "loading snapshot"
+              : total === 1
+                ? "global draw"
+                : "global draws"}
+          </Text>
+        </View>
+      );
+    })}
+  </View>
+);
 
 const StatsPanel = ({
   data,
@@ -104,43 +145,74 @@ const StatsPanel = ({
   data: CardDrawCount[];
   isLoading: boolean;
   label: string;
-}) => (
-  <View style={styles.panel}>
-    <View style={styles.panelHeader}>
-      <Text style={styles.panelTitle}>{label}</Text>
-      <Text style={styles.panelMeta}>Top {TOP_CARD_LIMIT}</Text>
-    </View>
+}) => {
+  const total = getDrawTotal(data);
 
-    {isLoading ? (
-      <View style={styles.stateBox}>
-        <Text style={styles.stateText}>Gathering the current draw pattern.</Text>
+  return (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <View style={styles.panelTitleGroup}>
+          <Text style={styles.panelTitle}>{label}</Text>
+          <Text style={styles.panelSubtitle}>
+            {isLoading
+              ? "Loading"
+              : `${total.toLocaleString()} ${total === 1 ? "draw" : "draws"}`}
+          </Text>
+        </View>
+        <Text style={styles.panelMeta}>Top {TOP_CARD_LIMIT}</Text>
       </View>
-    ) : data.length === 0 ? (
-      <View style={styles.stateBox}>
-        <Text style={styles.stateText}>No global draws recorded yet.</Text>
-      </View>
-    ) : (
-      <View style={styles.rankList}>
-        {data.slice(0, TOP_CARD_LIMIT).map((item, index) => (
-          <View key={`${item.cardId}-${index}`} style={styles.rankRow}>
-            <Text style={styles.rankNumber}>{index + 1}</Text>
-            <View style={styles.rankBody}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {getDisplayTitle(item)}
-              </Text>
-              <Text style={styles.cardId} numberOfLines={1}>
-                {item.cardId}
-              </Text>
-            </View>
-            <Text style={styles.drawCount}>
-              {item.drawCount.toLocaleString()}
-            </Text>
-          </View>
-        ))}
-      </View>
-    )}
-  </View>
-);
+
+      {isLoading ? (
+        <View style={styles.stateBox}>
+          <Text style={styles.stateText}>
+            Gathering the current draw pattern.
+          </Text>
+        </View>
+      ) : data.length === 0 ? (
+        <View style={styles.stateBox}>
+          <Text style={styles.stateText}>No global draws recorded yet.</Text>
+        </View>
+      ) : (
+        <View style={styles.rankList}>
+          {data.slice(0, TOP_CARD_LIMIT).map((item, index) => {
+            const card = getStatsCard(item);
+            return (
+              <View
+                key={`${item.cardId}-${index}`}
+                style={[styles.rankRow, index === 0 && styles.rankRowTop]}
+              >
+                <Text style={styles.rankNumber}>{index + 1}</Text>
+                <View style={styles.thumbnailFrame}>
+                  <Image
+                    source={card?.image ?? cardBackImage}
+                    style={styles.thumbnail}
+                    resizeMode="cover"
+                  />
+                </View>
+                <View style={styles.rankBody}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>
+                    {getDisplayTitle(item)}
+                  </Text>
+                  <Text style={styles.cardId} numberOfLines={1}>
+                    {item.cardId}
+                  </Text>
+                </View>
+                <View style={styles.countPill}>
+                  <Text style={styles.drawCount}>
+                    {item.drawCount.toLocaleString()}
+                  </Text>
+                  <Text style={styles.drawLabel}>
+                    {item.drawCount === 1 ? "draw" : "draws"}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+};
 
 export default function StatsLandingPage() {
   const { height, width } = useWindowDimensions();
@@ -232,6 +304,12 @@ export default function StatsLandingPage() {
             <Text style={styles.updated}>Last updated {loadedAtLabel}</Text>
           </View>
 
+          <SummaryStrip
+            isLoading={state.status === "loading"}
+            isWide={isWide}
+            ranges={state.ranges}
+          />
+
           {state.status === "error" ? (
             <View style={styles.errorBox}>
               <Text style={styles.errorTitle}>Stats are unavailable</Text>
@@ -265,11 +343,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#21180f",
   },
   backgroundImage: {
-    opacity: 0.24,
+    opacity: 0.3,
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(34, 24, 14, 0.78)",
+    backgroundColor: "rgba(30, 20, 11, 0.72)",
   },
   page: {
     width: "100%",
@@ -280,7 +358,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     maxWidth: 820,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   kicker: {
     color: "#c2d08c",
@@ -308,6 +386,44 @@ const styles = StyleSheet.create({
   updated: {
     color: "#cdbb91",
     fontSize: 14,
+  },
+  summaryGrid: {
+    gap: 12,
+    marginBottom: 18,
+  },
+  summaryGridWide: {
+    flexDirection: "row",
+  },
+  summaryCard: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(228, 186, 116, 0.22)",
+    backgroundColor: "rgba(66, 43, 23, 0.72)",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  summaryLabel: {
+    color: "#d4e09f",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  summaryValue: {
+    color: "#fff6dd",
+    fontSize: 30,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 36,
+  },
+  summaryCaption: {
+    color: "#d8c59b",
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 2,
   },
   errorBox: {
     borderColor: "rgba(245, 174, 106, 0.45)",
@@ -340,16 +456,20 @@ const styles = StyleSheet.create({
     minWidth: 0,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "rgba(92, 74, 47, 0.42)",
-    backgroundColor: "rgba(255, 247, 222, 0.93)",
+    borderColor: "rgba(241, 220, 170, 0.7)",
+    backgroundColor: "rgba(255, 248, 226, 0.96)",
     padding: 18,
   },
   panelHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "baseline",
+    alignItems: "flex-start",
     gap: 12,
     marginBottom: 14,
+  },
+  panelTitleGroup: {
+    flex: 1,
+    minWidth: 0,
   },
   panelTitle: {
     color: "#2f2215",
@@ -357,10 +477,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0,
   },
-  panelMeta: {
-    color: "#7a603e",
+  panelSubtitle: {
+    color: "#80633d",
     fontSize: 13,
     fontWeight: "700",
+    marginTop: 3,
+  },
+  panelMeta: {
+    color: "#5d3d1f",
+    fontSize: 13,
+    fontWeight: "700",
+    borderRadius: 999,
+    backgroundColor: "rgba(137, 96, 48, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   stateBox: {
     minHeight: 148,
@@ -381,18 +511,38 @@ const styles = StyleSheet.create({
   rankRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    minHeight: 48,
+    gap: 10,
+    minHeight: 66,
     borderRadius: 8,
-    backgroundColor: "rgba(97, 77, 48, 0.09)",
-    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "rgba(92, 70, 40, 0.1)",
+    backgroundColor: "rgba(98, 74, 43, 0.08)",
+    paddingHorizontal: 10,
     paddingVertical: 8,
   },
+  rankRowTop: {
+    borderColor: "rgba(147, 103, 41, 0.28)",
+    backgroundColor: "rgba(144, 102, 43, 0.14)",
+  },
   rankNumber: {
-    width: 24,
+    width: 22,
     color: "#6f4d2a",
     fontSize: 14,
     fontWeight: "800",
+    textAlign: "center",
+  },
+  thumbnailFrame: {
+    width: CARD_THUMB_WIDTH,
+    height: CARD_THUMB_HEIGHT,
+    overflow: "hidden",
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "rgba(47, 34, 21, 0.42)",
+    backgroundColor: "#3f2b19",
+  },
+  thumbnail: {
+    width: "100%",
+    height: "100%",
   },
   rankBody: {
     flex: 1,
@@ -409,12 +559,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+  countPill: {
+    minWidth: 54,
+    borderRadius: 8,
+    backgroundColor: "rgba(65, 45, 24, 0.12)",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
   drawCount: {
     color: "#2f2215",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "900",
-    minWidth: 42,
-    textAlign: "right",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  drawLabel: {
+    color: "#80633d",
+    fontSize: 10,
+    fontWeight: "800",
+    lineHeight: 13,
+    textTransform: "uppercase",
   },
   footerNote: {
     color: "#d9c89d",
