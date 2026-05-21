@@ -21,6 +21,20 @@ type SupabaseDrawEventRow = {
   is_first_draw_of_session?: boolean;
 };
 
+export type CardDrawCount = {
+  cardId: string;
+  title: string | null;
+  drawCount: number;
+};
+
+type RawCardDrawCount = Record<string, unknown>;
+
+type CardDrawCountParams = {
+  rangeStart: string;
+  rangeEnd: string;
+  targetDeckId?: string;
+};
+
 declare const process:
   | {
       env: {
@@ -80,6 +94,38 @@ const toDrawEventRow = (event: DrawEvent): SupabaseDrawEventRow => ({
   is_first_draw_of_session: event.isFirstDrawOfSession,
 });
 
+const getStringField = (row: RawCardDrawCount, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return null;
+};
+
+const getNumberField = (row: RawCardDrawCount, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return 0;
+};
+
+const toCardDrawCount = (row: RawCardDrawCount): CardDrawCount => ({
+  cardId: getStringField(row, ["card_id", "id"]) ?? "unknown",
+  title: getStringField(row, ["card_title", "card_name", "title", "name"]),
+  drawCount: getNumberField(row, ["draw_count", "count", "total"]),
+});
+
 export const uploadDrawEvents = async (events: DrawEvent[]) => {
   const config = getSupabaseConfig();
   if (!config || events.length === 0) {
@@ -118,4 +164,48 @@ export const uploadDrawEvents = async (events: DrawEvent[]) => {
   }
 
   return true;
+};
+
+export const getCardDrawCounts = async ({
+  rangeStart,
+  rangeEnd,
+  targetDeckId = "default",
+}: CardDrawCountParams): Promise<CardDrawCount[]> => {
+  const config = getSupabaseConfig();
+  if (!config) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+    );
+  }
+
+  const response = await fetch(
+    `${config.url}/rest/v1/rpc/get_card_draw_counts`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        range_start: rangeStart,
+        range_end: rangeEnd,
+        target_deck_id: targetDeckId,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to load card draw counts (${response.status}): ${message}`,
+    );
+  }
+
+  const rows = (await response.json()) as unknown;
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => toCardDrawCount(row as RawCardDrawCount));
 };

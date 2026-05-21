@@ -52,6 +52,7 @@ import {
 } from "../src/lib/drawTracking";
 import { storage } from "../src/lib/storage";
 import CardFlip from "../src/components/CardFlip";
+import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
 
@@ -332,6 +333,10 @@ const parseStoredJournals = (raw: string): JournalEntry[] => {
 };
 
 export default function Index() {
+  if (Platform.OS === "web") {
+    return <StatsLandingPage />;
+  }
+
   const [fontsLoaded] = useFonts({
     MilongaRegular: require("../assets/Milonga-Regular.ttf"),
   });
