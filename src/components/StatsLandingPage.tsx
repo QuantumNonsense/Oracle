@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Image,
   ImageBackground,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +14,9 @@ import {
 import { cardBackImage, cards } from "../decks/defaultDeck";
 import { CARD_HEIGHT_RATIO } from "../lib/cardLayout";
 import {
+  getCardDrawBreakdown,
   getCardDrawCounts,
+  type CardDrawBreakdown,
   type CardDrawCount,
 } from "../lib/supabaseApi";
 
@@ -26,9 +30,24 @@ type StatsRange = {
 };
 
 type RangeState = {
+  key: StatsRangeKey;
   label: string;
+  rangeStart: string;
+  rangeEnd: string;
   data: CardDrawCount[];
 };
+
+type SelectedCardState = {
+  item: CardDrawCount;
+  range: RangeState;
+  title: string;
+};
+
+type BreakdownState =
+  | { status: "idle"; data: CardDrawBreakdown[]; message?: undefined }
+  | { status: "loading"; data: CardDrawBreakdown[]; message?: undefined }
+  | { status: "ready"; data: CardDrawBreakdown[]; message?: undefined }
+  | { status: "error"; data: CardDrawBreakdown[]; message: string };
 
 type LoadState =
   | { status: "loading"; ranges: RangeState[]; lastUpdated: Date | null }
@@ -104,8 +123,27 @@ const getStatsCard = (item: CardDrawCount) => cardsById.get(item.cardId);
 const getDrawTotal = (data: CardDrawCount[]) =>
   data.reduce((total, item) => total + item.drawCount, 0);
 
+const createRangeState = (
+  range: StatsRange,
+  data: CardDrawCount[] = [],
+): RangeState => ({
+  key: range.key,
+  label: range.label,
+  rangeStart: range.start.toISOString(),
+  rangeEnd: range.end.toISOString(),
+  data,
+});
+
 const createEmptyRanges = () =>
-  buildRanges(new Date()).map((range) => ({ label: range.label, data: [] }));
+  buildRanges(new Date()).map((range) => createRangeState(range));
+
+const formatSelectionSlot = (slot: number | null) =>
+  slot === null ? "Unknown slot" : `Slot ${slot + 1}`;
+
+const formatDrawMode = (drawMode: string) =>
+  drawMode.length > 0
+    ? `${drawMode.charAt(0).toUpperCase()}${drawMode.slice(1)}`
+    : "Unknown";
 
 const SummaryStrip = ({
   isLoading,
@@ -142,10 +180,14 @@ const StatsPanel = ({
   data,
   isLoading,
   label,
+  onSelectCard,
+  range,
 }: {
   data: CardDrawCount[];
   isLoading: boolean;
   label: string;
+  onSelectCard: (item: CardDrawCount, range: RangeState) => void;
+  range: RangeState;
 }) => {
   const total = getDrawTotal(data);
 
@@ -183,9 +225,15 @@ const StatsPanel = ({
           {data.slice(0, TOP_CARD_LIMIT).map((item, index) => {
             const card = getStatsCard(item);
             return (
-              <View
+              <Pressable
+                accessibilityRole="button"
                 key={`${item.cardId}-${index}`}
-                style={[styles.rankRow, index === 0 && styles.rankRowTop]}
+                onPress={() => onSelectCard(item, range)}
+                style={({ pressed }) => [
+                  styles.rankRow,
+                  index === 0 && styles.rankRowTop,
+                  pressed && styles.rankRowPressed,
+                ]}
               >
                 <Text style={styles.rankNumber}>{index + 1}</Text>
                 <View style={styles.thumbnailFrame}>
@@ -211,12 +259,127 @@ const StatsPanel = ({
                     {item.drawCount === 1 ? "draw" : "draws"}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </ScrollView>
       )}
     </View>
+  );
+};
+
+const CardBreakdownModal = ({
+  breakdown,
+  onClose,
+  selected,
+}: {
+  breakdown: BreakdownState;
+  onClose: () => void;
+  selected: SelectedCardState | null;
+}) => {
+  const card = selected ? cardsById.get(selected.item.cardId) : null;
+  const total = selected?.item.drawCount ?? 0;
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      transparent
+      visible={Boolean(selected)}
+    >
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable
+          onPress={(event) => event.stopPropagation()}
+          style={styles.modalCard}
+        >
+          <View style={styles.modalHeader}>
+            <View style={styles.modalThumbFrame}>
+              <Image
+                source={card?.image ?? cardBackImage}
+                style={styles.modalThumb}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={styles.modalTitleGroup}>
+              <Text style={styles.modalEyebrow}>
+                {selected?.range.label ?? "Card details"}
+              </Text>
+              <Text style={styles.modalTitle} numberOfLines={2}>
+                {selected?.title ?? "Card"}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                {total.toLocaleString()} {total === 1 ? "draw" : "draws"}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Close card details"
+              accessibilityRole="button"
+              onPress={onClose}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.breakdownContent}>
+            {breakdown.status === "loading" ? (
+              <View style={styles.modalStateBox}>
+                <Text style={styles.modalStateText}>
+                  Loading the aggregate breakdown.
+                </Text>
+              </View>
+            ) : breakdown.status === "error" ? (
+              <View style={styles.modalErrorBox}>
+                <Text style={styles.modalErrorTitle}>
+                  Breakdown unavailable
+                </Text>
+                <Text style={styles.modalErrorText}>{breakdown.message}</Text>
+              </View>
+            ) : breakdown.data.length === 0 ? (
+              <View style={styles.modalStateBox}>
+                <Text style={styles.modalStateText}>
+                  No grouped detail is available for this card yet.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.breakdownScroll}
+                contentContainerStyle={styles.breakdownList}
+                showsVerticalScrollIndicator
+              >
+                {breakdown.data.map((item, index) => (
+                  <View
+                    key={`${item.selectionSlot}-${item.drawMode}-${item.clientTimezone}-${index}`}
+                    style={styles.breakdownRow}
+                  >
+                    <View style={styles.breakdownMain}>
+                      <Text style={styles.breakdownSlot}>
+                        {formatSelectionSlot(item.selectionSlot)}
+                      </Text>
+                      <Text style={styles.breakdownMeta} numberOfLines={1}>
+                        {formatDrawMode(item.drawMode)} draw
+                      </Text>
+                      <Text style={styles.breakdownTimezone} numberOfLines={1}>
+                        {item.clientTimezone ?? "Unknown timezone"}
+                      </Text>
+                    </View>
+                    <View style={styles.breakdownCountPill}>
+                      <Text style={styles.breakdownCount}>
+                        {item.drawCount.toLocaleString()}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          <Text style={styles.modalFooterNote}>
+            Grouped public counts only. Individual draw events are not shown.
+          </Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 };
 
@@ -226,6 +389,13 @@ export default function StatsLandingPage() {
     status: "loading",
     ranges: createEmptyRanges(),
     lastUpdated: null,
+  });
+  const [selectedCard, setSelectedCard] = useState<SelectedCardState | null>(
+    null,
+  );
+  const [breakdownState, setBreakdownState] = useState<BreakdownState>({
+    status: "idle",
+    data: [],
   });
 
   const isWide = width >= 980;
@@ -242,19 +412,19 @@ export default function StatsLandingPage() {
       setState((prev) => ({
         ...prev,
         status: "loading",
-        ranges: ranges.map((range) => ({ label: range.label, data: [] })),
+        ranges: ranges.map((range) => createRangeState(range)),
       }));
 
       try {
         const results = await Promise.all(
-          ranges.map(async (range) => ({
-            label: range.label,
-            data: await getCardDrawCounts({
+          ranges.map(async (range) => {
+            const data = await getCardDrawCounts({
               rangeStart: range.start.toISOString(),
               rangeEnd: range.end.toISOString(),
               targetDeckId: DECK_ID,
-            }),
-          })),
+            });
+            return createRangeState(range, data);
+          }),
         );
 
         if (!isMounted) {
@@ -272,7 +442,7 @@ export default function StatsLandingPage() {
         }
         setState({
           status: "error",
-          ranges: ranges.map((range) => ({ label: range.label, data: [] })),
+          ranges: ranges.map((range) => createRangeState(range)),
           lastUpdated: null,
           message:
             error instanceof Error
@@ -288,6 +458,64 @@ export default function StatsLandingPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedCard) {
+      setBreakdownState({ status: "idle", data: [] });
+      return;
+    }
+
+    let isMounted = true;
+    setBreakdownState({ status: "loading", data: [] });
+
+    const loadBreakdown = async () => {
+      try {
+        const data = await getCardDrawBreakdown({
+          cardId: selectedCard.item.cardId,
+          rangeStart: selectedCard.range.rangeStart,
+          rangeEnd: selectedCard.range.rangeEnd,
+          targetDeckId: DECK_ID,
+        });
+
+        if (!isMounted) {
+          return;
+        }
+
+        setBreakdownState({ status: "ready", data });
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setBreakdownState({
+          status: "error",
+          data: [],
+          message:
+            error instanceof Error
+              ? error.message
+              : "The grouped draw details could not be loaded.",
+        });
+      }
+    };
+
+    void loadBreakdown();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCard]);
+
+  const handleSelectCard = (item: CardDrawCount, range: RangeState) => {
+    setSelectedCard({
+      item,
+      range,
+      title: getDisplayTitle(item),
+    });
+  };
+
+  const closeBreakdown = () => {
+    setSelectedCard(null);
+  };
 
   return (
     <ImageBackground
@@ -330,6 +558,8 @@ export default function StatsLandingPage() {
                 data={range.data}
                 isLoading={state.status === "loading"}
                 label={range.label}
+                onSelectCard={handleSelectCard}
+                range={range}
               />
             ))}
           </View>
@@ -338,6 +568,12 @@ export default function StatsLandingPage() {
             Aggregate public counts only. Individual draw events are not shown.
           </Text>
         </ScrollView>
+
+        <CardBreakdownModal
+          breakdown={breakdownState}
+          onClose={closeBreakdown}
+          selected={selectedCard}
+        />
       </View>
     </ImageBackground>
   );
@@ -534,6 +770,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(147, 103, 41, 0.28)",
     backgroundColor: "rgba(144, 102, 43, 0.14)",
   },
+  rankRowPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.995 }],
+  },
   rankNumber: {
     width: 22,
     color: "#6f4d2a",
@@ -596,6 +836,177 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     marginTop: 20,
+    textAlign: "center",
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: "rgba(19, 12, 7, 0.76)",
+    paddingHorizontal: 18,
+    paddingVertical: 28,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 680,
+    maxHeight: "92%",
+    alignSelf: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(241, 220, 170, 0.72)",
+    backgroundColor: "#fff4d8",
+    padding: 18,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 16,
+  },
+  modalThumbFrame: {
+    width: 74,
+    height: Math.round(74 * CARD_HEIGHT_RATIO),
+    flexShrink: 0,
+    overflow: "hidden",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(47, 34, 21, 0.5)",
+    backgroundColor: "#3f2b19",
+  },
+  modalThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  modalTitleGroup: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modalEyebrow: {
+    color: "#7a5d35",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0,
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  modalTitle: {
+    color: "#2f2215",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: 0,
+    lineHeight: 32,
+  },
+  modalSubtitle: {
+    color: "#80633d",
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  closeButton: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    backgroundColor: "rgba(65, 45, 24, 0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  closeButtonText: {
+    color: "#3b2917",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  breakdownContent: {
+    borderRadius: 8,
+    backgroundColor: "rgba(98, 74, 43, 0.08)",
+    padding: 10,
+  },
+  breakdownScroll: {
+    maxHeight: 360,
+  },
+  breakdownList: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(92, 70, 40, 0.12)",
+    backgroundColor: "rgba(255, 248, 226, 0.72)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  breakdownMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  breakdownSlot: {
+    color: "#2f2215",
+    fontSize: 16,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
+  breakdownMeta: {
+    color: "#6f4d2a",
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  breakdownTimezone: {
+    color: "#8b7150",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  breakdownCountPill: {
+    minWidth: 54,
+    borderRadius: 8,
+    backgroundColor: "rgba(65, 45, 24, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  breakdownCount: {
+    color: "#2f2215",
+    fontSize: 17,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
+  modalStateBox: {
+    minHeight: 132,
+    justifyContent: "center",
+    padding: 18,
+  },
+  modalStateText: {
+    color: "#72583a",
+    fontSize: 15,
+    lineHeight: 23,
+    textAlign: "center",
+  },
+  modalErrorBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(157, 72, 49, 0.3)",
+    backgroundColor: "rgba(99, 44, 30, 0.12)",
+    padding: 14,
+  },
+  modalErrorTitle: {
+    color: "#66321f",
+    fontSize: 16,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  modalErrorText: {
+    color: "#724933",
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  modalFooterNote: {
+    color: "#80633d",
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 18,
+    marginTop: 12,
     textAlign: "center",
   },
 });

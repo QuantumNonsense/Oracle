@@ -86,3 +86,49 @@ revoke all on function public.get_card_draw_counts(timestamptz, timestamptz, tex
 
 grant execute on function public.get_card_draw_counts(timestamptz, timestamptz, text)
   to anon, authenticated;
+
+create or replace function public.get_card_draw_breakdown(
+  range_start timestamptz,
+  range_end timestamptz,
+  target_card_id text,
+  target_deck_id text default 'default'
+)
+returns table (
+  card_id text,
+  selection_slot smallint,
+  draw_mode text,
+  client_timezone text,
+  draw_count bigint
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    events.card_id,
+    events.selection_slot,
+    events.draw_mode,
+    events.client_timezone,
+    count(*) as draw_count
+  from public.card_draw_events as events
+  where events.deck_id = target_deck_id
+    and events.card_id = target_card_id
+    and events.drawn_at >= range_start
+    and events.drawn_at < range_end
+  group by
+    events.card_id,
+    events.selection_slot,
+    events.draw_mode,
+    events.client_timezone
+  order by draw_count desc,
+    events.selection_slot asc nulls last,
+    events.draw_mode asc,
+    events.client_timezone asc nulls last;
+$$;
+
+revoke all on function public.get_card_draw_breakdown(timestamptz, timestamptz, text, text)
+  from public;
+
+grant execute on function public.get_card_draw_breakdown(timestamptz, timestamptz, text, text)
+  to anon, authenticated;

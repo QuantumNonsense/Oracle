@@ -351,10 +351,10 @@ const shouldRenderStatsLandingPage = () => {
 };
 
 export default function Index() {
-  if (shouldRenderStatsLandingPage()) {
-    return <StatsLandingPage />;
-  }
+  return shouldRenderStatsLandingPage() ? <StatsLandingPage /> : <OracleApp />;
+}
 
+function OracleApp() {
   const [fontsLoaded] = useFonts({
     MilongaRegular: require("../assets/Milonga-Regular.ttf"),
   });
