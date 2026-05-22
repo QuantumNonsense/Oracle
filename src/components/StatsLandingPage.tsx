@@ -16,8 +16,10 @@ import { CARD_HEIGHT_RATIO } from "../lib/cardLayout";
 import {
   getCardDrawBreakdown,
   getCardDrawCounts,
+  getCardJournalCounts,
   type CardDrawBreakdown,
   type CardDrawCount,
+  type CardJournalCount,
 } from "../lib/supabaseApi";
 
 type StatsRangeKey = "today" | "week" | "month";
@@ -37,6 +39,14 @@ type RangeState = {
   data: CardDrawCount[];
 };
 
+type JournalRangeState = {
+  key: StatsRangeKey;
+  label: string;
+  rangeStart: string;
+  rangeEnd: string;
+  data: CardJournalCount[];
+};
+
 type SelectedCardState = {
   item: CardDrawCount;
   range: RangeState;
@@ -50,14 +60,32 @@ type BreakdownState =
   | { status: "error"; data: CardDrawBreakdown[]; message: string };
 
 type LoadState =
-  | { status: "loading"; ranges: RangeState[]; lastUpdated: Date | null }
-  | { status: "ready"; ranges: RangeState[]; lastUpdated: Date }
+  | {
+      status: "loading";
+      ranges: RangeState[];
+      journalRanges: JournalRangeState[];
+      lastUpdated: Date | null;
+    }
+  | {
+      status: "ready";
+      ranges: RangeState[];
+      journalRanges: JournalRangeState[];
+      lastUpdated: Date;
+    }
   | {
       status: "error";
       ranges: RangeState[];
+      journalRanges: JournalRangeState[];
       lastUpdated: Date | null;
       message: string;
     };
+
+type RankedCardItem<T> = {
+  cardId: string;
+  title: string | null;
+  count: number;
+  source: T;
+};
 
 const TOP_CARD_LIMIT = 10;
 const DECK_ID = "default";
@@ -115,10 +143,10 @@ const formatLastUpdated = (date: Date | null) => {
   }).format(date);
 };
 
-const getDisplayTitle = (item: CardDrawCount) =>
+const getDisplayTitle = (item: { cardId: string; title: string | null }) =>
   item.title ?? cardTitlesById.get(item.cardId) ?? item.cardId;
 
-const getStatsCard = (item: CardDrawCount) => cardsById.get(item.cardId);
+const getStatsCard = (item: { cardId: string }) => cardsById.get(item.cardId);
 
 const getDrawTotal = (data: CardDrawCount[]) =>
   data.reduce((total, item) => total + item.drawCount, 0);
@@ -134,8 +162,22 @@ const createRangeState = (
   data,
 });
 
+const createJournalRangeState = (
+  range: StatsRange,
+  data: CardJournalCount[] = [],
+): JournalRangeState => ({
+  key: range.key,
+  label: range.label,
+  rangeStart: range.start.toISOString(),
+  rangeEnd: range.end.toISOString(),
+  data,
+});
+
 const createEmptyRanges = () =>
   buildRanges(new Date()).map((range) => createRangeState(range));
+
+const createEmptyJournalRanges = () =>
+  buildRanges(new Date()).map((range) => createJournalRangeState(range));
 
 const formatSelectionSlot = (slot: number | null) =>
   slot === null ? "Unknown slot" : `Slot ${slot + 1}`;
@@ -176,20 +218,26 @@ const SummaryStrip = ({
   </View>
 );
 
-const StatsPanel = ({
+const RankedStatsPanel = <T,>({
   data,
+  emptyText,
   isLoading,
   label,
+  loadingText,
   onSelectCard,
-  range,
+  singularLabel,
+  pluralLabel,
 }: {
-  data: CardDrawCount[];
+  data: Array<RankedCardItem<T>>;
+  emptyText: string;
   isLoading: boolean;
   label: string;
-  onSelectCard: (item: CardDrawCount, range: RangeState) => void;
-  range: RangeState;
+  loadingText: string;
+  onSelectCard?: (item: T) => void;
+  singularLabel: string;
+  pluralLabel: string;
 }) => {
-  const total = getDrawTotal(data);
+  const total = data.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <View style={styles.panel}>
@@ -199,7 +247,9 @@ const StatsPanel = ({
           <Text style={styles.panelSubtitle}>
             {isLoading
               ? "Loading"
-              : `${total.toLocaleString()} ${total === 1 ? "draw" : "draws"}`}
+              : `${total.toLocaleString()} ${
+                  total === 1 ? singularLabel : pluralLabel
+                }`}
           </Text>
         </View>
         <Text style={styles.panelMeta}>Top {TOP_CARD_LIMIT}</Text>
@@ -207,13 +257,11 @@ const StatsPanel = ({
 
       {isLoading ? (
         <View style={styles.stateBox}>
-          <Text style={styles.stateText}>
-            Gathering the current draw pattern.
-          </Text>
+          <Text style={styles.stateText}>{loadingText}</Text>
         </View>
       ) : data.length === 0 ? (
         <View style={styles.stateBox}>
-          <Text style={styles.stateText}>No global draws recorded yet.</Text>
+          <Text style={styles.stateText}>{emptyText}</Text>
         </View>
       ) : (
         <ScrollView
@@ -224,17 +272,8 @@ const StatsPanel = ({
         >
           {data.slice(0, TOP_CARD_LIMIT).map((item, index) => {
             const card = getStatsCard(item);
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={`${item.cardId}-${index}`}
-                onPress={() => onSelectCard(item, range)}
-                style={({ pressed }) => [
-                  styles.rankRow,
-                  index === 0 && styles.rankRowTop,
-                  pressed && styles.rankRowPressed,
-                ]}
-              >
+            const content = (
+              <>
                 <Text style={styles.rankNumber}>{index + 1}</Text>
                 <View style={styles.thumbnailFrame}>
                   <Image
@@ -253,13 +292,38 @@ const StatsPanel = ({
                 </View>
                 <View style={styles.countPill}>
                   <Text style={styles.drawCount}>
-                    {item.drawCount.toLocaleString()}
+                    {item.count.toLocaleString()}
                   </Text>
                   <Text style={styles.drawLabel}>
-                    {item.drawCount === 1 ? "draw" : "draws"}
+                    {item.count === 1 ? singularLabel : pluralLabel}
                   </Text>
                 </View>
-              </Pressable>
+              </>
+            );
+            if (onSelectCard) {
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={`${item.cardId}-${index}`}
+                  onPress={() => onSelectCard(item.source)}
+                  style={({ pressed }) => [
+                    styles.rankRow,
+                    index === 0 && styles.rankRowTop,
+                    pressed && styles.rankRowPressed,
+                  ]}
+                >
+                  {content}
+                </Pressable>
+              );
+            }
+
+            return (
+              <View
+                key={`${item.cardId}-${index}`}
+                style={[styles.rankRow, index === 0 && styles.rankRowTop]}
+              >
+                {content}
+              </View>
             );
           })}
         </ScrollView>
@@ -388,6 +452,7 @@ export default function StatsLandingPage() {
   const [state, setState] = useState<LoadState>({
     status: "loading",
     ranges: createEmptyRanges(),
+    journalRanges: createEmptyJournalRanges(),
     lastUpdated: null,
   });
   const [selectedCard, setSelectedCard] = useState<SelectedCardState | null>(
@@ -413,19 +478,32 @@ export default function StatsLandingPage() {
         ...prev,
         status: "loading",
         ranges: ranges.map((range) => createRangeState(range)),
+        journalRanges: ranges.map((range) => createJournalRangeState(range)),
       }));
 
       try {
-        const results = await Promise.all(
-          ranges.map(async (range) => {
-            const data = await getCardDrawCounts({
-              rangeStart: range.start.toISOString(),
-              rangeEnd: range.end.toISOString(),
-              targetDeckId: DECK_ID,
-            });
-            return createRangeState(range, data);
-          }),
-        );
+        const [drawResults, journalResults] = await Promise.all([
+          Promise.all(
+            ranges.map(async (range) => {
+              const data = await getCardDrawCounts({
+                rangeStart: range.start.toISOString(),
+                rangeEnd: range.end.toISOString(),
+                targetDeckId: DECK_ID,
+              });
+              return createRangeState(range, data);
+            }),
+          ),
+          Promise.all(
+            ranges.map(async (range) => {
+              const data = await getCardJournalCounts({
+                rangeStart: range.start.toISOString(),
+                rangeEnd: range.end.toISOString(),
+                targetDeckId: DECK_ID,
+              });
+              return createJournalRangeState(range, data);
+            }),
+          ),
+        ]);
 
         if (!isMounted) {
           return;
@@ -433,7 +511,8 @@ export default function StatsLandingPage() {
 
         setState({
           status: "ready",
-          ranges: results,
+          ranges: drawResults,
+          journalRanges: journalResults,
           lastUpdated: new Date(),
         });
       } catch (error) {
@@ -443,6 +522,7 @@ export default function StatsLandingPage() {
         setState({
           status: "error",
           ranges: ranges.map((range) => createRangeState(range)),
+          journalRanges: ranges.map((range) => createJournalRangeState(range)),
           lastUpdated: null,
           message:
             error instanceof Error
@@ -553,19 +633,55 @@ export default function StatsLandingPage() {
 
           <View style={[styles.panelGrid, isWide && styles.panelGridWide]}>
             {state.ranges.map((range) => (
-              <StatsPanel
+              <RankedStatsPanel
                 key={range.label}
-                data={range.data}
+                data={range.data.map((item) => ({
+                  cardId: item.cardId,
+                  title: item.title,
+                  count: item.drawCount,
+                  source: item,
+                }))}
+                emptyText="No global draws recorded yet."
                 isLoading={state.status === "loading"}
                 label={range.label}
-                onSelectCard={handleSelectCard}
-                range={range}
+                loadingText="Gathering the current draw pattern."
+                onSelectCard={(item) => handleSelectCard(item, range)}
+                singularLabel="draw"
+                pluralLabel="draws"
+              />
+            ))}
+          </View>
+
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Most Journaled Cards</Text>
+            <Text style={styles.sectionSubtitle}>
+              Anonymous counts of cards people chose to reflect on.
+            </Text>
+          </View>
+
+          <View style={[styles.panelGrid, isWide && styles.panelGridWide]}>
+            {state.journalRanges.map((range) => (
+              <RankedStatsPanel
+                key={`journal-${range.label}`}
+                data={range.data.map((item) => ({
+                  cardId: item.cardId,
+                  title: item.title,
+                  count: item.journalCount,
+                  source: item,
+                }))}
+                emptyText="No journal entries recorded yet."
+                isLoading={state.status === "loading"}
+                label={range.label}
+                loadingText="Gathering the current journal pattern."
+                singularLabel="entry"
+                pluralLabel="entries"
               />
             ))}
           </View>
 
           <Text style={styles.footerNote}>
-            Aggregate public counts only. Individual draw events are not shown.
+            Aggregate public counts only. Individual draw and journal events are
+            not shown.
           </Text>
         </ScrollView>
 
@@ -692,6 +808,24 @@ const styles = StyleSheet.create({
   panelGridWide: {
     flexDirection: "row",
     alignItems: "stretch",
+  },
+  sectionHeader: {
+    marginTop: 26,
+    marginBottom: 14,
+    maxWidth: 720,
+  },
+  sectionTitle: {
+    color: "#fff6dd",
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: 0,
+    lineHeight: 34,
+    marginBottom: 6,
+  },
+  sectionSubtitle: {
+    color: "#e8d4aa",
+    fontSize: 15,
+    lineHeight: 22,
   },
   panel: {
     flex: 1,

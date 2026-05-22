@@ -1,4 +1,5 @@
 import type { DrawEvent } from "./drawTracking";
+import type { JournalEvent } from "./journalTracking";
 
 type SupabaseConfig = {
   url: string;
@@ -21,10 +22,27 @@ type SupabaseDrawEventRow = {
   is_first_draw_of_session?: boolean;
 };
 
+type SupabaseJournalEventRow = {
+  id: string;
+  card_id: string;
+  card_title?: string | null;
+  deck_id: string;
+  journaled_at: string;
+  client_session_id?: string | null;
+  client_timezone?: string | null;
+  app_version?: string | null;
+};
+
 export type CardDrawCount = {
   cardId: string;
   title: string | null;
   drawCount: number;
+};
+
+export type CardJournalCount = {
+  cardId: string;
+  title: string | null;
+  journalCount: number;
 };
 
 export type CardDrawBreakdown = {
@@ -36,6 +54,7 @@ export type CardDrawBreakdown = {
 };
 
 type RawCardDrawCount = Record<string, unknown>;
+type RawCardJournalCount = Record<string, unknown>;
 type RawCardDrawBreakdown = Record<string, unknown>;
 
 type CardDrawCountParams = {
@@ -107,7 +126,18 @@ const toDrawEventRow = (event: DrawEvent): SupabaseDrawEventRow => ({
   is_first_draw_of_session: event.isFirstDrawOfSession,
 });
 
-const getStringField = (row: RawCardDrawCount, keys: string[]) => {
+const toJournalEventRow = (event: JournalEvent): SupabaseJournalEventRow => ({
+  id: event.id,
+  card_id: event.cardId,
+  card_title: event.cardTitle,
+  deck_id: event.deckId,
+  journaled_at: event.journaledAt,
+  client_session_id: event.clientSessionId,
+  client_timezone: event.clientTimezone,
+  app_version: event.appVersion,
+});
+
+const getStringField = (row: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
     if (typeof value === "string" && value.trim().length > 0) {
@@ -117,7 +147,7 @@ const getStringField = (row: RawCardDrawCount, keys: string[]) => {
   return null;
 };
 
-const getNumberField = (row: RawCardDrawCount, keys: string[]) => {
+const getNumberField = (row: Record<string, unknown>, keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -159,6 +189,17 @@ const toCardDrawCount = (row: RawCardDrawCount): CardDrawCount => ({
   cardId: getStringField(row, ["card_id", "id"]) ?? "unknown",
   title: getStringField(row, ["card_title", "card_name", "title", "name"]),
   drawCount: getNumberField(row, ["draw_count", "count", "total"]),
+});
+
+const toCardJournalCount = (row: RawCardJournalCount): CardJournalCount => ({
+  cardId: getStringField(row, ["card_id", "id"]) ?? "unknown",
+  title: getStringField(row, ["card_title", "card_name", "title", "name"]),
+  journalCount: getNumberField(row, [
+    "journal_count",
+    "entry_count",
+    "count",
+    "total",
+  ]),
 });
 
 const toCardDrawBreakdown = (
@@ -219,6 +260,46 @@ export const uploadDrawEvents = async (events: DrawEvent[]) => {
   return true;
 };
 
+export const uploadJournalEvents = async (events: JournalEvent[]) => {
+  const config = getSupabaseConfig();
+  if (!config || events.length === 0) {
+    if (!config && isDev()) {
+      console.warn(
+        "Supabase journal tracking is disabled: missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+      );
+    }
+    return false;
+  }
+
+  const endpoint = `${config.url}/rest/v1/card_journal_events`;
+  if (isDev()) {
+    console.info(`Uploading ${events.length} journal event(s) to ${endpoint}`);
+  }
+
+  const response = await fetch(
+    endpoint,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(events.map(toJournalEventRow)),
+    },
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to upload journal events (${response.status}): ${message}`,
+    );
+  }
+
+  return true;
+};
+
 export const getCardDrawCounts = async ({
   rangeStart,
   rangeEnd,
@@ -261,6 +342,50 @@ export const getCardDrawCounts = async ({
   }
 
   return rows.map((row) => toCardDrawCount(row as RawCardDrawCount));
+};
+
+export const getCardJournalCounts = async ({
+  rangeStart,
+  rangeEnd,
+  targetDeckId = "default",
+}: CardDrawCountParams): Promise<CardJournalCount[]> => {
+  const config = getSupabaseConfig();
+  if (!config) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.",
+    );
+  }
+
+  const response = await fetch(
+    `${config.url}/rest/v1/rpc/get_card_journal_counts`,
+    {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        range_start: rangeStart,
+        range_end: rangeEnd,
+        target_deck_id: targetDeckId,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `Failed to load card journal counts (${response.status}): ${message}`,
+    );
+  }
+
+  const rows = (await response.json()) as unknown;
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => toCardJournalCount(row as RawCardJournalCount));
 };
 
 export const getCardDrawBreakdown = async ({

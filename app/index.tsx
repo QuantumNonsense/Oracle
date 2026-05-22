@@ -50,6 +50,10 @@ import {
   recordDrawEvents,
   type DrawMode,
 } from "../src/lib/drawTracking";
+import {
+  flushPendingJournalEvents,
+  recordJournalEvent,
+} from "../src/lib/journalTracking";
 import { storage } from "../src/lib/storage";
 import CardFlip from "../src/components/CardFlip";
 import StatsLandingPage from "../src/components/StatsLandingPage";
@@ -927,6 +931,7 @@ function OracleApp() {
 
     void loadState();
     void flushPendingDrawEvents();
+    void flushPendingJournalEvents();
   }, []);
 
   useEffect(() => {
@@ -1000,18 +1005,23 @@ function OracleApp() {
       setIsJournalOpen(false);
       return;
     }
+    const journaledAt = new Date().toISOString();
     setJournalEntries((prev) => {
       const next = [
         {
           id: createJournalEntryId(),
           cardId: currentCard.id,
           entry: trimmed,
-          createdAt: new Date().toISOString(),
+          createdAt: journaledAt,
         },
         ...prev,
       ];
       persistJournals(next);
       return next;
+    });
+    void recordJournalEvent(currentCard, {
+      appVersion: APP_VERSION,
+      journaledAt,
     });
     setJournalDraft("");
     setIsJournalOpen(false);
