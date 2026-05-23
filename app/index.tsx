@@ -60,7 +60,19 @@ import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
 
-const SHUFFLE_TIMING = {
+type ShuffleAnimationVariant = "classic" | "riffle" | "orbit";
+type ShuffleAnimationMode = ShuffleAnimationVariant | "alternating" | "random";
+
+// Use "random" to choose each shuffle independently, or force a named shuffle.
+const SHUFFLE_ANIMATION_MODE: ShuffleAnimationMode = "random";
+const FIRST_ALTERNATING_SHUFFLE: ShuffleAnimationVariant = "riffle";
+const SHUFFLE_ANIMATION_SEQUENCE: ShuffleAnimationVariant[] = [
+  FIRST_ALTERNATING_SHUFFLE,
+  "classic",
+  "orbit",
+];
+
+const CLASSIC_SHUFFLE_TIMING = {
   COLLAPSE_DURATION: 550,
   HOLD_BEFORE_SHAKE: 40,
   SHAKE_DURATION: 1,
@@ -69,10 +81,18 @@ const SHUFFLE_TIMING = {
   SWIRL_RESET_DURATION: 1,
   EXPAND_DURATION: 550,
 } as const;
+const SHUFFLE_TIMING = CLASSIC_SHUFFLE_TIMING;
+const RIFFLE_SHUFFLE_TIMING = {
+  COLLAPSE_DURATION: 520,
+  SPLIT_DURATION: 280,
+  RIFFLE_DURATION: 760,
+  BRIDGE_DURATION: 220,
+  EXPAND_DURATION: 540,
+} as const;
 const SHUFFLE_SHAKE_STEPS = 6;
 const SHUFFLE_SWIRL_STEPS = 8;
 const SHUFFLE_START_PROGRESS_ON_OPEN = 0.4;
-const SHUFFLE_TOTAL_DURATION =
+const CLASSIC_SHUFFLE_TOTAL_DURATION =
   SHUFFLE_TIMING.COLLAPSE_DURATION +
   SHUFFLE_TIMING.HOLD_BEFORE_SHAKE +
   SHUFFLE_TIMING.SHAKE_DURATION +
@@ -82,6 +102,14 @@ const SHUFFLE_TOTAL_DURATION =
   SHUFFLE_TIMING.SWIRL_DURATION +
   SHUFFLE_TIMING.SWIRL_RESET_DURATION +
   SHUFFLE_TIMING.EXPAND_DURATION;
+const RIFFLE_SHUFFLE_TOTAL_DURATION =
+  RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION +
+  RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION +
+  RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION +
+  RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION +
+  RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION;
+const ORBIT_SHUFFLE_TOTAL_DURATION = 1500;
+const SHUFFLE_ORBIT_STEPS = 12;
 const CARD_FLIP_DURATION_MS = 440;
 const DEFAULT_AUTO_FLIP_BACK_HOLD_MS = 140;
 const SINGLE_CARD_CONFIRM_BACK_HOLD_MS = 650;
@@ -458,7 +486,13 @@ function OracleApp() {
   const fanCollapse = useRef(new Animated.Value(0)).current;
   const shuffleShake = useRef(new Animated.Value(0)).current;
   const shuffleSwirl = useRef(new Animated.Value(0)).current;
+  const shuffleRiffleSplit = useRef(new Animated.Value(0)).current;
+  const shuffleRiffleInterleave = useRef(new Animated.Value(0)).current;
+  const shuffleRiffleBridge = useRef(new Animated.Value(0)).current;
+  const shuffleOrbit = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const nextAlternatingShuffleVariantRef =
+    useRef<ShuffleAnimationVariant>(FIRST_ALTERNATING_SHUFFLE);
   const shuffleButtonPress = useRef(new Animated.Value(0)).current;
   const singleCardGrowAnim = useRef(new Animated.Value(0)).current;
   const singleCardTransitionOpacityAnim = useRef(
@@ -1053,6 +1087,10 @@ function OracleApp() {
     setIsIosDetailOverlayVisible(false);
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
+    shuffleRiffleSplit.setValue(0);
+    shuffleRiffleInterleave.setValue(0);
+    shuffleRiffleBridge.setValue(0);
+    shuffleOrbit.setValue(0);
     selectionAnim.setValue(0);
     resetSingleSelectionAnims();
     resetTripleSelectionAnims();
@@ -1102,6 +1140,10 @@ function OracleApp() {
     selectionAnim,
     shuffleShake,
     shuffleSwirl,
+    shuffleRiffleSplit,
+    shuffleRiffleInterleave,
+    shuffleRiffleBridge,
+    shuffleOrbit,
     shuffleAnimRef,
   ]);
 
@@ -1519,14 +1561,31 @@ function OracleApp() {
     fanCollapse.setValue(0);
     shuffleShake.setValue(0);
     shuffleSwirl.setValue(0);
+    shuffleRiffleSplit.setValue(0);
+    shuffleRiffleInterleave.setValue(0);
+    shuffleRiffleBridge.setValue(0);
+    shuffleOrbit.setValue(0);
     setIsShuffling(false);
-  }, [fanCollapse, shuffleDeck, shuffleShake, shuffleSwirl]);
+  }, [
+    fanCollapse,
+    shuffleDeck,
+    shuffleOrbit,
+    shuffleRiffleBridge,
+    shuffleRiffleInterleave,
+    shuffleRiffleSplit,
+    shuffleShake,
+    shuffleSwirl,
+  ]);
 
-  const startShuffle = useCallback(
+  const startClassicShuffle = useCallback(
     (initialProgress = 0) => {
       setIsShuffling(true);
+      shuffleRiffleSplit.setValue(0);
+      shuffleRiffleInterleave.setValue(0);
+      shuffleRiffleBridge.setValue(0);
+      shuffleOrbit.setValue(0);
       const progress = Math.min(Math.max(initialProgress, 0), 1);
-      let elapsed = SHUFFLE_TOTAL_DURATION * progress;
+      let elapsed = CLASSIC_SHUFFLE_TOTAL_DURATION * progress;
       const consumeElapsed = (duration: number) => {
         const consumed = Math.min(elapsed, duration);
         elapsed -= consumed;
@@ -1709,7 +1768,269 @@ function OracleApp() {
         }
       });
     },
-    [fanCollapse, handleShuffleDone, shuffleShake, shuffleSwirl],
+    [
+      fanCollapse,
+      handleShuffleDone,
+      shuffleRiffleBridge,
+      shuffleRiffleInterleave,
+      shuffleRiffleSplit,
+      shuffleOrbit,
+      shuffleShake,
+      shuffleSwirl,
+    ],
+  );
+
+  const startRiffleShuffle = useCallback(
+    (initialProgress = 0) => {
+      setIsShuffling(true);
+      shuffleShake.setValue(0);
+      shuffleSwirl.setValue(0);
+      shuffleOrbit.setValue(0);
+      const progress = Math.min(Math.max(initialProgress, 0), 1);
+      let elapsed = RIFFLE_SHUFFLE_TOTAL_DURATION * progress;
+      const consumeElapsed = (duration: number) => {
+        const consumed = Math.min(elapsed, duration);
+        elapsed -= consumed;
+        return consumed;
+      };
+      const collapseElapsed = consumeElapsed(
+        RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION,
+      );
+      const splitElapsed = consumeElapsed(RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION);
+      const riffleElapsed = consumeElapsed(
+        RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION,
+      );
+      const bridgeElapsed = consumeElapsed(
+        RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION,
+      );
+      const expandElapsed = consumeElapsed(
+        RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION,
+      );
+
+      const collapseProgress =
+        RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION > 0
+          ? collapseElapsed / RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION
+          : 1;
+      const splitProgress =
+        RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION > 0
+          ? splitElapsed / RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION
+          : 1;
+      const riffleProgress =
+        RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION > 0
+          ? riffleElapsed / RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION
+          : 1;
+      const bridgeProgress =
+        RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION > 0
+          ? bridgeElapsed / RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION
+          : 1;
+      const expandProgress =
+        RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION > 0
+          ? expandElapsed / RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION
+          : 1;
+
+      if (collapseElapsed < RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION) {
+        fanCollapse.setValue(collapseProgress);
+      } else if (expandElapsed > 0) {
+        fanCollapse.setValue(1 - expandProgress);
+      } else if (progress >= 1) {
+        fanCollapse.setValue(0);
+      } else {
+        fanCollapse.setValue(1);
+      }
+
+      if (splitElapsed < RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION) {
+        shuffleRiffleSplit.setValue(splitProgress);
+      } else if (riffleElapsed > 0) {
+        shuffleRiffleSplit.setValue(1 - riffleProgress);
+      } else if (collapseElapsed >= RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION) {
+        shuffleRiffleSplit.setValue(1);
+      } else {
+        shuffleRiffleSplit.setValue(0);
+      }
+
+      if (riffleElapsed > 0) {
+        shuffleRiffleInterleave.setValue(riffleProgress);
+      } else if (
+        splitElapsed >= RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION &&
+        bridgeElapsed > 0
+      ) {
+        shuffleRiffleInterleave.setValue(1);
+      } else {
+        shuffleRiffleInterleave.setValue(0);
+      }
+
+      if (bridgeElapsed > 0) {
+        shuffleRiffleBridge.setValue(bridgeProgress);
+      } else if (expandElapsed > 0) {
+        shuffleRiffleBridge.setValue(1);
+      } else {
+        shuffleRiffleBridge.setValue(0);
+      }
+
+      const animationSteps: Animated.CompositeAnimation[] = [];
+      const collapseRemaining =
+        RIFFLE_SHUFFLE_TIMING.COLLAPSE_DURATION - collapseElapsed;
+      if (collapseRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 1,
+            duration: collapseRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const splitRemaining =
+        RIFFLE_SHUFFLE_TIMING.SPLIT_DURATION - splitElapsed;
+      if (splitRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleRiffleSplit, {
+            toValue: 1,
+            duration: splitRemaining,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const riffleRemaining =
+        RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION - riffleElapsed;
+      if (riffleRemaining > 0) {
+        animationSteps.push(
+          Animated.parallel([
+            Animated.timing(shuffleRiffleSplit, {
+              toValue: 0,
+              duration: riffleRemaining,
+              easing: Easing.inOut(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(shuffleRiffleInterleave, {
+              toValue: 1,
+              duration: riffleRemaining,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+          ]),
+        );
+      }
+
+      const bridgeRemaining =
+        RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION - bridgeElapsed;
+      if (bridgeRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleRiffleBridge, {
+            toValue: 1,
+            duration: bridgeRemaining,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const expandRemaining =
+        RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION - expandElapsed;
+      if (expandRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 0,
+            duration: expandRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const animation = Animated.sequence(animationSteps);
+      shuffleAnimRef.current = animation;
+      animation.start(({ finished }) => {
+        if (finished) {
+          handleShuffleDone();
+        }
+      });
+    },
+    [
+      fanCollapse,
+      handleShuffleDone,
+      shuffleRiffleBridge,
+      shuffleRiffleInterleave,
+      shuffleRiffleSplit,
+      shuffleOrbit,
+      shuffleShake,
+      shuffleSwirl,
+    ],
+  );
+
+  const startOrbitShuffle = useCallback(
+    (initialProgress = 0) => {
+      setIsShuffling(true);
+      fanCollapse.setValue(0);
+      shuffleShake.setValue(0);
+      shuffleSwirl.setValue(0);
+      shuffleRiffleSplit.setValue(0);
+      shuffleRiffleInterleave.setValue(0);
+      shuffleRiffleBridge.setValue(0);
+
+      const progress = Math.min(Math.max(initialProgress, 0), 1);
+      shuffleOrbit.setValue(progress);
+      const animation = Animated.timing(shuffleOrbit, {
+        toValue: 1,
+        duration: Math.max(
+          1,
+          Math.round(ORBIT_SHUFFLE_TOTAL_DURATION * (1 - progress)),
+        ),
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      });
+      shuffleAnimRef.current = animation;
+      animation.start(({ finished }) => {
+        if (finished) {
+          handleShuffleDone();
+        }
+      });
+    },
+    [
+      fanCollapse,
+      handleShuffleDone,
+      shuffleOrbit,
+      shuffleRiffleBridge,
+      shuffleRiffleInterleave,
+      shuffleRiffleSplit,
+      shuffleShake,
+      shuffleSwirl,
+    ],
+  );
+
+  const startShuffle = useCallback(
+    (initialProgress = 0) => {
+      const variant =
+        SHUFFLE_ANIMATION_MODE === "random"
+          ? SHUFFLE_ANIMATION_SEQUENCE[
+              Math.floor(Math.random() * SHUFFLE_ANIMATION_SEQUENCE.length)
+            ] ?? FIRST_ALTERNATING_SHUFFLE
+          : SHUFFLE_ANIMATION_MODE === "alternating"
+            ? nextAlternatingShuffleVariantRef.current
+            : SHUFFLE_ANIMATION_MODE;
+
+      if (SHUFFLE_ANIMATION_MODE === "alternating") {
+        const variantIndex = SHUFFLE_ANIMATION_SEQUENCE.indexOf(variant);
+        nextAlternatingShuffleVariantRef.current =
+          SHUFFLE_ANIMATION_SEQUENCE[
+            (variantIndex + 1) % SHUFFLE_ANIMATION_SEQUENCE.length
+          ] ?? FIRST_ALTERNATING_SHUFFLE;
+      }
+
+      if (variant === "classic") {
+        startClassicShuffle(initialProgress);
+        return;
+      }
+      if (variant === "riffle") {
+        startRiffleShuffle(initialProgress);
+        return;
+      }
+      startOrbitShuffle(initialProgress);
+    },
+    [startClassicShuffle, startOrbitShuffle, startRiffleShuffle],
   );
 
   useEffect(() => {
@@ -2247,6 +2568,34 @@ function OracleApp() {
     () => Math.min(fanCardWidth * 0.28, 70),
     [fanCardWidth],
   );
+  const riffleSplitDistance = useMemo(
+    () => Math.min(fanCardWidth * 0.44, 68),
+    [fanCardWidth],
+  );
+  const riffleFlickDistance = useMemo(
+    () => Math.min(fanCardWidth * 0.1, 14),
+    [fanCardWidth],
+  );
+  const riffleLiftDistance = useMemo(
+    () => Math.min(fanCardHeight * 0.05, 12),
+    [fanCardHeight],
+  );
+  const riffleBridgeLift = useMemo(
+    () => Math.min(fanCardHeight * 0.035, 8),
+    [fanCardHeight],
+  );
+  const orbitRadiusX = useMemo(
+    () => Math.min(fanCardWidth * 0.48, 72),
+    [fanCardWidth],
+  );
+  const orbitRadiusY = useMemo(
+    () => Math.min(fanCardHeight * 0.14, 34),
+    [fanCardHeight],
+  );
+  const orbitLift = useMemo(
+    () => Math.min(fanCardHeight * 0.06, 14),
+    [fanCardHeight],
+  );
   const swirlPhase = useMemo(
     () =>
       shuffleSwirl.interpolate({
@@ -2255,10 +2604,26 @@ function OracleApp() {
       }),
     [shuffleSwirl],
   );
+  const orbitEnvelope = useMemo(
+    () =>
+      shuffleOrbit.interpolate({
+        inputRange: [0, 0.14, 0.86, 1],
+        outputRange: [0, 1, 1, 0],
+        extrapolate: "clamp",
+      }),
+    [shuffleOrbit],
+  );
   const swirlStepInput = useMemo(
     () =>
       Array.from({ length: SHUFFLE_SWIRL_STEPS + 1 }).map(
         (_, step) => step / SHUFFLE_SWIRL_STEPS,
+      ),
+    [],
+  );
+  const orbitStepInput = useMemo(
+    () =>
+      Array.from({ length: SHUFFLE_ORBIT_STEPS + 1 }).map(
+        (_, step) => step / SHUFFLE_ORBIT_STEPS,
       ),
     [],
   );
@@ -3091,6 +3456,139 @@ function OracleApp() {
                           outputRange: ["0deg", "6deg", "0deg"],
                         })
                       : "0deg";
+                    const riffleSplitPoint = Math.ceil(fanSlots.length / 2);
+                    const isLeftRifflePacket = index < riffleSplitPoint;
+                    const rifflePacketSide = isLeftRifflePacket ? -1 : 1;
+                    const rifflePacketIndex = isLeftRifflePacket
+                      ? index
+                      : index - riffleSplitPoint;
+                    const riffleOrder =
+                      rifflePacketIndex * 2 + (isLeftRifflePacket ? 0 : 1);
+                    const riffleDelay = 0.04 + riffleOrder * 0.085;
+                    const riffleEnd = Math.min(riffleDelay + 0.32, 0.98);
+                    const riffleMid =
+                      riffleDelay + (riffleEnd - riffleDelay) / 2;
+                    const riffleLocalMotion =
+                      shuffleRiffleInterleave.interpolate({
+                        inputRange: [
+                          0,
+                          riffleDelay,
+                          riffleMid,
+                          riffleEnd,
+                          1,
+                        ],
+                        outputRange: [0, 0, 1, 0, 0],
+                        extrapolate: "clamp",
+                      });
+                    const riffleSplitX = Animated.multiply(
+                      shuffleRiffleSplit,
+                      rifflePacketSide * riffleSplitDistance,
+                    );
+                    const riffleFlickX = Animated.multiply(
+                      riffleLocalMotion,
+                      -rifflePacketSide * riffleFlickDistance,
+                    );
+                    const riffleLiftY = Animated.multiply(
+                      riffleLocalMotion,
+                      -riffleLiftDistance,
+                    );
+                    const riffleBridgeX = shuffleRiffleBridge.interpolate({
+                      inputRange: [0, 0.45, 1],
+                      outputRange: [0, centerOffset * 1.8, 0],
+                    });
+                    const riffleBridgeY = shuffleRiffleBridge.interpolate({
+                      inputRange: [0, 0.45, 1],
+                      outputRange: [0, -riffleBridgeLift, 0],
+                    });
+                    const riffleSplitRotate =
+                      shuffleRiffleSplit.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [
+                          "0deg",
+                          `${rifflePacketSide * 3}deg`,
+                        ],
+                      });
+                    const riffleFlickRotate =
+                      riffleLocalMotion.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [
+                          "0deg",
+                          `${-rifflePacketSide * 3.2}deg`,
+                        ],
+                      });
+                    const riffleBridgeRotate =
+                      shuffleRiffleBridge.interpolate({
+                        inputRange: [0, 0.45, 1],
+                        outputRange: [
+                          "0deg",
+                          `${centerOffset * 0.8}deg`,
+                          "0deg",
+                        ],
+                      });
+                    const riffleBridgeScaleY =
+                      shuffleRiffleBridge.interpolate({
+                        inputRange: [0, 0.45, 1],
+                        outputRange: [1, 0.985, 1],
+                      });
+                    const orbitPhaseOffset =
+                      (index / Math.max(fanSlots.length, 1)) * Math.PI * 2;
+                    const orbitXBase = shuffleOrbit.interpolate({
+                      inputRange: orbitStepInput,
+                      outputRange: orbitStepInput.map(
+                        (step) =>
+                          (Math.cos(step * Math.PI * 2 + orbitPhaseOffset) -
+                            Math.cos(orbitPhaseOffset)) *
+                          orbitRadiusX,
+                      ),
+                      extrapolate: "clamp",
+                    });
+                    const orbitYBase = shuffleOrbit.interpolate({
+                      inputRange: orbitStepInput,
+                      outputRange: orbitStepInput.map(
+                        (step) =>
+                          (Math.sin(step * Math.PI * 2 + orbitPhaseOffset) -
+                            Math.sin(orbitPhaseOffset)) *
+                            orbitRadiusY -
+                          Math.sin(step * Math.PI) * orbitLift,
+                      ),
+                      extrapolate: "clamp",
+                    });
+                    const orbitX = Animated.multiply(
+                      orbitEnvelope,
+                      orbitXBase,
+                    );
+                    const orbitY = Animated.multiply(
+                      orbitEnvelope,
+                      orbitYBase,
+                    );
+                    const orbitRotate = shuffleOrbit.interpolate({
+                      inputRange: [0, 0.35, 0.65, 1],
+                      outputRange: [
+                        "0deg",
+                        `${centerOffset <= 0 ? 7 : -7}deg`,
+                        `${centerOffset <= 0 ? -5 : 5}deg`,
+                        "0deg",
+                      ],
+                    });
+                    const orbitScale = shuffleOrbit.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: [1, 1.018, 1],
+                    });
+                    const riffleOffsetX = Animated.add(
+                      riffleSplitX,
+                      Animated.add(riffleFlickX, riffleBridgeX),
+                    );
+                    const shuffleOffsetX = Animated.add(
+                      Animated.add(shakeX, swirlX),
+                      Animated.add(riffleOffsetX, orbitX),
+                    );
+                    const shuffleOffsetY = Animated.add(
+                      Animated.add(shakeY, swirlY),
+                      Animated.add(
+                        Animated.add(riffleLiftY, riffleBridgeY),
+                        orbitY,
+                      ),
+                    );
                     return (
                       <AnimatedPressable
                         key={`fan-card-${index}`}
@@ -3109,18 +3607,24 @@ function OracleApp() {
                               {
                                 translateX: Animated.add(
                                   translateX,
-                                  Animated.add(shakeX, swirlX),
+                                  shuffleOffsetX,
                                 ),
                               },
                               {
                                 translateY: Animated.add(
                                   translateY,
-                                  Animated.add(shakeY, swirlY),
+                                  shuffleOffsetY,
                                 ),
                               },
                               { rotate: rotateZ },
                               { rotate: swirlRotate },
+                              { rotate: riffleSplitRotate },
+                              { rotate: riffleFlickRotate },
+                              { rotate: riffleBridgeRotate },
+                              { rotate: orbitRotate },
                               { scale },
+                              { scale: orbitScale },
+                              { scaleY: riffleBridgeScaleY },
                               { translateY: selectionPullOutY },
                             ],
                           },
