@@ -63,7 +63,7 @@ import { colors, radii, shadow, spacing, typography } from "../src/theme";
 type ShuffleAnimationVariant = "classic" | "riffle" | "orbit";
 type ShuffleAnimationMode = ShuffleAnimationVariant | "alternating" | "random";
 
-// Use "random" to choose each shuffle independently, or force a named shuffle.
+// Use "random" to choose shuffles without immediate repeats, or force a named shuffle.
 const SHUFFLE_ANIMATION_MODE: ShuffleAnimationMode = "random";
 const FIRST_ALTERNATING_SHUFFLE: ShuffleAnimationVariant = "riffle";
 const SHUFFLE_ANIMATION_SEQUENCE: ShuffleAnimationVariant[] = [
@@ -493,6 +493,9 @@ function OracleApp() {
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const nextAlternatingShuffleVariantRef =
     useRef<ShuffleAnimationVariant>(FIRST_ALTERNATING_SHUFFLE);
+  const lastRandomShuffleVariantRef = useRef<ShuffleAnimationVariant | null>(
+    null,
+  );
   const shuffleButtonPress = useRef(new Animated.Value(0)).current;
   const singleCardGrowAnim = useRef(new Animated.Value(0)).current;
   const singleCardTransitionOpacityAnim = useRef(
@@ -2003,14 +2006,21 @@ function OracleApp() {
 
   const startShuffle = useCallback(
     (initialProgress = 0) => {
-      const variant =
-        SHUFFLE_ANIMATION_MODE === "random"
-          ? SHUFFLE_ANIMATION_SEQUENCE[
-              Math.floor(Math.random() * SHUFFLE_ANIMATION_SEQUENCE.length)
-            ] ?? FIRST_ALTERNATING_SHUFFLE
-          : SHUFFLE_ANIMATION_MODE === "alternating"
-            ? nextAlternatingShuffleVariantRef.current
-            : SHUFFLE_ANIMATION_MODE;
+      let variant: ShuffleAnimationVariant;
+
+      if (SHUFFLE_ANIMATION_MODE === "random") {
+        const candidates = SHUFFLE_ANIMATION_SEQUENCE.filter(
+          (item) => item !== lastRandomShuffleVariantRef.current,
+        );
+        variant =
+          candidates[Math.floor(Math.random() * candidates.length)] ??
+          FIRST_ALTERNATING_SHUFFLE;
+        lastRandomShuffleVariantRef.current = variant;
+      } else if (SHUFFLE_ANIMATION_MODE === "alternating") {
+        variant = nextAlternatingShuffleVariantRef.current;
+      } else {
+        variant = SHUFFLE_ANIMATION_MODE;
+      }
 
       if (SHUFFLE_ANIMATION_MODE === "alternating") {
         const variantIndex = SHUFFLE_ANIMATION_SEQUENCE.indexOf(variant);
