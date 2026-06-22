@@ -130,6 +130,8 @@ const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
+const REFLECTION_QUESTION_CURSORS_KEY =
+  "oracle:reflection-question-cursors:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
 const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
@@ -149,7 +151,10 @@ type JournalEntry = {
   cardId: string;
   entry: string;
   createdAt: string;
+  reflectionQuestionIndex?: number | null;
 };
+
+type ReflectionQuestionIndexMap = Record<string, number>;
 
 type FanSize = {
   w: number;
@@ -198,7 +203,50 @@ const formatHistoryDate = (value: string) => {
 const createJournalEntryId = () =>
   `journal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const buildDetailLines = (card: Card | null) => {
+const normalizeReflectionQuestionIndex = (
+  value: number | null | undefined,
+  questionCount: number,
+) => {
+  if (questionCount <= 0) {
+    return null;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+  const integer = Math.trunc(value);
+  return ((integer % questionCount) + questionCount) % questionCount;
+};
+
+const parseReflectionQuestionCursors = (
+  raw: string | null,
+): ReflectionQuestionIndexMap => {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).flatMap(
+        ([cardId, value]) => {
+          if (typeof value !== "number" || !Number.isFinite(value)) {
+            return [];
+          }
+          return [[cardId, Math.max(0, Math.trunc(value))]];
+        },
+      ),
+    );
+  } catch (error) {
+    return {};
+  }
+};
+
+const buildDetailLines = (
+  card: Card | null,
+  reflectionQuestionIndex: number | null = null,
+) => {
   if (!card) {
     return [];
   }
@@ -220,28 +268,38 @@ const buildDetailLines = (card: Card | null) => {
       text: paragraph,
     });
   });
-  if (card.reflectionQuestions && card.reflectionQuestions.length > 0) {
+  const reflectionQuestions = card.reflectionQuestions ?? [];
+  const selectedReflectionQuestionIndex = normalizeReflectionQuestionIndex(
+    reflectionQuestionIndex,
+    reflectionQuestions.length,
+  );
+  const selectedReflectionQuestion =
+    selectedReflectionQuestionIndex === null
+      ? null
+      : reflectionQuestions[selectedReflectionQuestionIndex];
+  if (selectedReflectionQuestion) {
     lines.push({
       key: `rq-heading-${card.id}`,
       type: "heading",
-      text: "Reflection Questions",
+      text: "Reflection Question",
     });
-    card.reflectionQuestions.forEach((question, index) => {
-      lines.push({
-        key: `rq-${card.id}-${index}`,
-        type: "bullet",
-        text: `~${question}`,
-      });
+    lines.push({
+      key: `rq-${card.id}-${selectedReflectionQuestionIndex}`,
+      type: "bullet",
+      text: `~${selectedReflectionQuestion}`,
     });
   }
   return lines;
 };
 
-const buildCardDetailText = (card: Card | null) => {
+const buildCardDetailText = (
+  card: Card | null,
+  reflectionQuestionIndex: number | null = null,
+) => {
   if (!card) {
     return "No description available.";
   }
-  const lines = buildDetailLines(card).slice(1);
+  const lines = buildDetailLines(card, reflectionQuestionIndex).slice(1);
   if (lines.length === 0) {
     return "No description available.";
   }
@@ -339,6 +397,14 @@ const parseStoredJournals = (raw: string): JournalEntry[] => {
             typeof (item as JournalEntry).createdAt === "string",
           ),
         )
+        .map((item) => ({
+          ...item,
+          reflectionQuestionIndex:
+            typeof item.reflectionQuestionIndex === "number" &&
+            Number.isFinite(item.reflectionQuestionIndex)
+              ? Math.max(0, Math.trunc(item.reflectionQuestionIndex))
+              : null,
+        }))
         .sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -432,6 +498,8 @@ function OracleApp() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [drawReflectionQuestionIndexes, setDrawReflectionQuestionIndexes] =
+    useState<ReflectionQuestionIndexMap>({});
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
@@ -539,6 +607,8 @@ function OracleApp() {
   const isCardTransitioningRef = useRef(false);
   const isDetailModeRef = useRef(false);
   const currentCardIdRef = useRef<string | null>(null);
+  const reflectionQuestionCursorsRef = useRef<ReflectionQuestionIndexMap>({});
+  const didAdvanceReflectionQuestionCursorsRef = useRef(false);
   const isAudioEnabledRef = useRef(false);
   const activeTrackIndexRef = useRef(0);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -603,9 +673,12 @@ function OracleApp() {
     }),
     [tapHintAnim],
   );
+  const currentReflectionQuestionIndex = currentCard
+    ? (drawReflectionQuestionIndexes[currentCard.id] ?? null)
+    : null;
   const detailLines = useMemo(
-    () => buildDetailLines(currentCard),
-    [currentCard],
+    () => buildDetailLines(currentCard, currentReflectionQuestionIndex),
+    [currentCard, currentReflectionQuestionIndex],
   );
   const getSingleSelectionAnim = useCallback((slotIndex: number) => {
     const values = singleSelectionAnimsRef.current;
@@ -700,7 +773,7 @@ function OracleApp() {
 
   const detailLineOpacities = useMemo(
     () => detailLines.map(() => new Animated.Value(0)),
-    [detailLines.length, currentCard?.id],
+    [detailLines.length, currentCard?.id, currentReflectionQuestionIndex],
   );
 
   const detailContentNode = useMemo(() => {
@@ -931,13 +1004,19 @@ function OracleApp() {
 
   useEffect(() => {
     const loadState = async () => {
-      const [storedFavorites, storedLast, storedHistory, storedJournals] =
-        await Promise.all([
-          storage.getItem(FAVORITES_KEY),
-          storage.getItem(LAST_CARD_KEY),
-          storage.getItem(HISTORY_KEY),
-          storage.getItem(JOURNAL_KEY),
-        ]);
+      const [
+        storedFavorites,
+        storedLast,
+        storedHistory,
+        storedJournals,
+        storedReflectionQuestionCursors,
+      ] = await Promise.all([
+        storage.getItem(FAVORITES_KEY),
+        storage.getItem(LAST_CARD_KEY),
+        storage.getItem(HISTORY_KEY),
+        storage.getItem(JOURNAL_KEY),
+        storage.getItem(REFLECTION_QUESTION_CURSORS_KEY),
+      ]);
 
       if (storedFavorites) {
         try {
@@ -961,6 +1040,12 @@ function OracleApp() {
 
       if (storedJournals) {
         setJournalEntries(parseStoredJournals(storedJournals));
+      }
+
+      if (!didAdvanceReflectionQuestionCursorsRef.current) {
+        reflectionQuestionCursorsRef.current = parseReflectionQuestionCursors(
+          storedReflectionQuestionCursors,
+        );
       }
     };
 
@@ -1022,6 +1107,59 @@ function OracleApp() {
     void storage.setItem(JOURNAL_KEY, JSON.stringify(next));
   }, []);
 
+  const persistReflectionQuestionCursors = useCallback(
+    (next: ReflectionQuestionIndexMap) => {
+      void storage.setItem(
+        REFLECTION_QUESTION_CURSORS_KEY,
+        JSON.stringify(next),
+      );
+    },
+    [],
+  );
+
+  const advanceReflectionQuestionsForDraw = useCallback(
+    (drawnCards: Card[]) => {
+      const selectedIndexes: ReflectionQuestionIndexMap = {};
+      const nextCursors = { ...reflectionQuestionCursorsRef.current };
+      let didAdvance = false;
+
+      drawnCards.forEach((card) => {
+        const questionCount = card.reflectionQuestions?.length ?? 0;
+        const selectedIndex = normalizeReflectionQuestionIndex(
+          nextCursors[card.id],
+          questionCount,
+        );
+        if (selectedIndex === null) {
+          return;
+        }
+        selectedIndexes[card.id] = selectedIndex;
+        nextCursors[card.id] = (selectedIndex + 1) % questionCount;
+        didAdvance = true;
+      });
+
+      setDrawReflectionQuestionIndexes(selectedIndexes);
+
+      if (didAdvance) {
+        didAdvanceReflectionQuestionCursorsRef.current = true;
+        reflectionQuestionCursorsRef.current = nextCursors;
+        persistReflectionQuestionCursors(nextCursors);
+      }
+
+      return selectedIndexes;
+    },
+    [persistReflectionQuestionCursors],
+  );
+
+  const getDrawReflectionQuestionIndex = useCallback(
+    (card: Card | null) => {
+      if (!card) {
+        return null;
+      }
+      return drawReflectionQuestionIndexes[card.id] ?? null;
+    },
+    [drawReflectionQuestionIndexes],
+  );
+
   const openJournal = useCallback(() => {
     if (!currentCard) {
       return;
@@ -1048,6 +1186,7 @@ function OracleApp() {
           cardId: currentCard.id,
           entry: trimmed,
           createdAt: journaledAt,
+          reflectionQuestionIndex: getDrawReflectionQuestionIndex(currentCard),
         },
         ...prev,
       ];
@@ -1060,7 +1199,12 @@ function OracleApp() {
     });
     setJournalDraft("");
     setIsJournalOpen(false);
-  }, [currentCard, journalDraft, persistJournals]);
+  }, [
+    currentCard,
+    getDrawReflectionQuestionIndex,
+    journalDraft,
+    persistJournals,
+  ]);
 
   const resetApp = useCallback(() => {
     shuffleAnimRef.current?.stop();
@@ -1098,6 +1242,7 @@ function OracleApp() {
     fanCollapse.setValue(0);
     applyDeckState({ cards: drawableCards, order: [], index: 0 });
     setCurrentCard(null);
+    setDrawReflectionQuestionIndexes({});
     setFlipPair(null);
     setIsFront(false);
     setIsDetailMode(false);
@@ -1155,12 +1300,18 @@ function OracleApp() {
       if (!card) {
         return;
       }
+      advanceReflectionQuestionsForDraw([card]);
       setCurrentCard(card);
       recordDrawBatch([card], "single", [selectionSlot]);
       persistLastCard(card);
       setIsFront(!autoFlip);
     },
-    [drawCardsFromDeck, persistLastCard, recordDrawBatch],
+    [
+      advanceReflectionQuestionsForDraw,
+      drawCardsFromDeck,
+      persistLastCard,
+      recordDrawBatch,
+    ],
   );
 
   const drawTripleCards = useCallback(
@@ -1170,6 +1321,7 @@ function OracleApp() {
     ) => {
       setAutoFlipNext(autoFlip);
       const drawnCards = drawCardsFromDeck(3);
+      advanceReflectionQuestionsForDraw(drawnCards);
       setTripleCards(drawnCards);
       setActiveTripleCardIndex(0);
       setExpandedTripleCardIndex(null);
@@ -1187,7 +1339,12 @@ function OracleApp() {
       }
       setIsFront(!autoFlip);
     },
-    [drawCardsFromDeck, persistLastCard, recordDrawBatch],
+    [
+      advanceReflectionQuestionsForDraw,
+      drawCardsFromDeck,
+      persistLastCard,
+      recordDrawBatch,
+    ],
   );
 
   const completeTripleCardTransition = useCallback(
@@ -1270,6 +1427,7 @@ function OracleApp() {
       setIsTripleCardHandoffVisible(false);
       setTripleCards([]);
       setCurrentCard(null);
+      setDrawReflectionQuestionIndexes({});
       setFlipPair(null);
       setIsFront(false);
       setIsDetailMode(false);
@@ -1279,6 +1437,7 @@ function OracleApp() {
       setAutoFlipNext(false);
 
       const drawnCards = drawCardsFromDeck(3);
+      advanceReflectionQuestionsForDraw(drawnCards);
       setTripleCardTransition({
         slots: transitionSlots,
         cards: drawnCards,
@@ -1289,6 +1448,7 @@ function OracleApp() {
       }
     },
     [
+      advanceReflectionQuestionsForDraw,
       drawTripleCards,
       drawCardsFromDeck,
       persistLastCard,
@@ -1432,6 +1592,7 @@ function OracleApp() {
     isDetailMode,
     isFront,
     currentCard?.id,
+    currentReflectionQuestionIndex,
   ]);
 
   useEffect(() => {
@@ -1533,6 +1694,7 @@ function OracleApp() {
     });
     setIsFront(false);
     setCurrentCard(null);
+    setDrawReflectionQuestionIndexes({});
     selectedSlotRef.current = null;
     isConfirmOpenRef.current = false;
     setSelectedSlot(null);
@@ -2065,6 +2227,7 @@ function OracleApp() {
       detailContentSwapTimeoutRef.current = null;
     }
     setCurrentCard(null);
+    setDrawReflectionQuestionIndexes({});
     setFlipPair(null);
     setIsFront(false);
     setIsDetailMode(false);
@@ -2426,6 +2589,7 @@ function OracleApp() {
     setSelectedSlot(null);
     setSelectedSlots([]);
     setTripleCards([]);
+    setDrawReflectionQuestionIndexes({});
     setActiveTripleCardIndex(0);
     setExpandedTripleCardIndex(null);
     setIsExpandedTripleFront(true);
@@ -2709,12 +2873,16 @@ function OracleApp() {
     ? (cardsById.get(selectedJournalEntry.cardId) ?? null)
     : null;
   const journalDetailText = useMemo(
-    () => buildCardDetailText(selectedJournalCard),
-    [selectedJournalCard],
+    () =>
+      buildCardDetailText(
+        selectedJournalCard,
+        selectedJournalEntry?.reflectionQuestionIndex ?? null,
+      ),
+    [selectedJournalCard, selectedJournalEntry?.reflectionQuestionIndex],
   );
   const journalPeekText = useMemo(
-    () => buildCardDetailText(currentCard),
-    [currentCard],
+    () => buildCardDetailText(currentCard, currentReflectionQuestionIndex),
+    [currentCard, currentReflectionQuestionIndex],
   );
   const tripleMiniRowGap = useMemo(
     () => Math.max(8, Math.min(14, Math.round(cardWidth * 0.03))),
@@ -2928,9 +3096,16 @@ function OracleApp() {
   const expandedTripleCard = isTripleExpandedOpen
     ? (tripleCards[expandedTripleCardIndex] ?? null)
     : null;
+  const expandedTripleReflectionQuestionIndex = expandedTripleCard
+    ? (drawReflectionQuestionIndexes[expandedTripleCard.id] ?? null)
+    : null;
   const expandedTripleDetailLines = useMemo(
-    () => buildDetailLines(expandedTripleCard),
-    [expandedTripleCard],
+    () =>
+      buildDetailLines(
+        expandedTripleCard,
+        expandedTripleReflectionQuestionIndex,
+      ),
+    [expandedTripleCard, expandedTripleReflectionQuestionIndex],
   );
   const expandedTripleTitleLine = expandedTripleDetailLines[0];
   const expandedTripleBodyLines = expandedTripleDetailLines.slice(1);
