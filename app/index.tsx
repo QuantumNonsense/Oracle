@@ -491,25 +491,23 @@ function OracleApp() {
   const shuffleRiffleBridge = useRef(new Animated.Value(0)).current;
   const shuffleOrbit = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-  const nextAlternatingShuffleVariantRef =
-    useRef<ShuffleAnimationVariant>(FIRST_ALTERNATING_SHUFFLE);
+  const nextAlternatingShuffleVariantRef = useRef<ShuffleAnimationVariant>(
+    FIRST_ALTERNATING_SHUFFLE,
+  );
   const lastRandomShuffleVariantRef = useRef<ShuffleAnimationVariant | null>(
     null,
   );
   const shuffleButtonPress = useRef(new Animated.Value(0)).current;
   const singleCardGrowAnim = useRef(new Animated.Value(0)).current;
-  const singleCardTransitionOpacityAnim = useRef(
-    new Animated.Value(1),
-  ).current;
+  const singleCardTransitionOpacityAnim = useRef(new Animated.Value(1)).current;
   const tripleCardGrowAnim = useRef(new Animated.Value(0)).current;
-  const tripleCardTransitionOpacityAnim = useRef(
-    new Animated.Value(1),
-  ).current;
+  const tripleCardTransitionOpacityAnim = useRef(new Animated.Value(1)).current;
   const tripleCardFlipAnimsRef = useRef<Animated.Value[]>(
     Array.from({ length: 3 }, () => new Animated.Value(0)),
   );
-  const singleCardGrowAnimationRef =
-    useRef<Animated.CompositeAnimation | null>(null);
+  const singleCardGrowAnimationRef = useRef<Animated.CompositeAnimation | null>(
+    null,
+  );
   const singleCardTransitionFadeAnimationRef =
     useRef<Animated.CompositeAnimation | null>(null);
   const tripleCardTransitionAnimationRef =
@@ -1305,9 +1303,7 @@ function OracleApp() {
       return;
     }
 
-    const flipValues = [0, 1, 2].map((index) =>
-      getTripleCardFlipAnim(index),
-    );
+    const flipValues = [0, 1, 2].map((index) => getTripleCardFlipAnim(index));
     tripleCardGrowAnim.setValue(0);
     flipValues.forEach((value) => {
       value.stopAnimation();
@@ -1378,9 +1374,12 @@ function OracleApp() {
     const revealTimeout = setTimeout(() => {
       setIsFront(true);
     }, backHoldMs);
-    const unlockTimeout = setTimeout(() => {
-      setAutoFlipNext(false);
-    }, backHoldMs + CARD_FLIP_DURATION_MS + 80);
+    const unlockTimeout = setTimeout(
+      () => {
+        setAutoFlipNext(false);
+      },
+      backHoldMs + CARD_FLIP_DURATION_MS + 80,
+    );
     return () => {
       clearTimeout(revealTimeout);
       clearTimeout(unlockTimeout);
@@ -2524,9 +2523,7 @@ function OracleApp() {
       ? favorites[currentCard.id]
       : false;
   const showIosDetachedDetailOverlay =
-    Platform.OS === "ios" &&
-    isDetailMode &&
-    isIosDetailOverlayVisible;
+    Platform.OS === "ios" && isDetailMode && isIosDetailOverlayVisible;
   const canFavorite = currentCard?.type === "card";
   const formattedHistory = useMemo(
     () =>
@@ -3480,13 +3477,7 @@ function OracleApp() {
                       riffleDelay + (riffleEnd - riffleDelay) / 2;
                     const riffleLocalMotion =
                       shuffleRiffleInterleave.interpolate({
-                        inputRange: [
-                          0,
-                          riffleDelay,
-                          riffleMid,
-                          riffleEnd,
-                          1,
-                        ],
+                        inputRange: [0, riffleDelay, riffleMid, riffleEnd, 1],
                         outputRange: [0, 0, 1, 0, 0],
                         extrapolate: "clamp",
                       });
@@ -3510,36 +3501,22 @@ function OracleApp() {
                       inputRange: [0, 0.45, 1],
                       outputRange: [0, -riffleBridgeLift, 0],
                     });
-                    const riffleSplitRotate =
-                      shuffleRiffleSplit.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [
-                          "0deg",
-                          `${rifflePacketSide * 3}deg`,
-                        ],
-                      });
-                    const riffleFlickRotate =
-                      riffleLocalMotion.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [
-                          "0deg",
-                          `${-rifflePacketSide * 3.2}deg`,
-                        ],
-                      });
-                    const riffleBridgeRotate =
-                      shuffleRiffleBridge.interpolate({
-                        inputRange: [0, 0.45, 1],
-                        outputRange: [
-                          "0deg",
-                          `${centerOffset * 0.8}deg`,
-                          "0deg",
-                        ],
-                      });
-                    const riffleBridgeScaleY =
-                      shuffleRiffleBridge.interpolate({
-                        inputRange: [0, 0.45, 1],
-                        outputRange: [1, 0.985, 1],
-                      });
+                    const riffleSplitRotate = shuffleRiffleSplit.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", `${rifflePacketSide * 3}deg`],
+                    });
+                    const riffleFlickRotate = riffleLocalMotion.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", `${-rifflePacketSide * 3.2}deg`],
+                    });
+                    const riffleBridgeRotate = shuffleRiffleBridge.interpolate({
+                      inputRange: [0, 0.45, 1],
+                      outputRange: ["0deg", `${centerOffset * 0.8}deg`, "0deg"],
+                    });
+                    const riffleBridgeScaleY = shuffleRiffleBridge.interpolate({
+                      inputRange: [0, 0.45, 1],
+                      outputRange: [1, 0.985, 1],
+                    });
                     const orbitPhaseOffset =
                       (index / Math.max(fanSlots.length, 1)) * Math.PI * 2;
                     const orbitXBase = shuffleOrbit.interpolate({
@@ -3563,14 +3540,8 @@ function OracleApp() {
                       ),
                       extrapolate: "clamp",
                     });
-                    const orbitX = Animated.multiply(
-                      orbitEnvelope,
-                      orbitXBase,
-                    );
-                    const orbitY = Animated.multiply(
-                      orbitEnvelope,
-                      orbitYBase,
-                    );
+                    const orbitX = Animated.multiply(orbitEnvelope, orbitXBase);
+                    const orbitY = Animated.multiply(orbitEnvelope, orbitYBase);
                     const orbitRotate = shuffleOrbit.interpolate({
                       inputRange: [0, 0.35, 0.65, 1],
                       outputRange: [
@@ -3668,10 +3639,7 @@ function OracleApp() {
                   return (
                     <Animated.View
                       key={`triple-transition-${card.id}-${index}`}
-                      style={[
-                        styles.tripleCardTransitionCard,
-                        transitionStyle,
-                      ]}
+                      style={[styles.tripleCardTransitionCard, transitionStyle]}
                     >
                       <Animated.View
                         style={[
@@ -3842,7 +3810,9 @@ function OracleApp() {
                               </View>
                               <ScrollView
                                 style={styles.detailScroll}
-                                contentContainerStyle={styles.detailScrollContent}
+                                contentContainerStyle={
+                                  styles.detailScrollContent
+                                }
                                 showsVerticalScrollIndicator={false}
                                 nestedScrollEnabled
                               >
@@ -3868,7 +3838,10 @@ function OracleApp() {
                                     );
                                   }
                                   return (
-                                    <Text key={line.key} style={styles.detailBodyText}>
+                                    <Text
+                                      key={line.key}
+                                      style={styles.detailBodyText}
+                                    >
                                       {line.text}
                                     </Text>
                                   );
@@ -4403,7 +4376,9 @@ function OracleApp() {
         >
           <Image
             source={
-              drawMode === "single" ? tripleDrawToggleIcon : singleDrawToggleIcon
+              drawMode === "single"
+                ? tripleDrawToggleIcon
+                : singleDrawToggleIcon
             }
             style={styles.drawModeToggleIcon}
           />
@@ -5344,6 +5319,7 @@ const styles = StyleSheet.create({
   },
   journalDetailCloseButtonOffset: {
     marginTop: "auto",
+    transform: [{ translateY: 12 }],
   },
   journalCloseLabel: {
     color: "#2b0a00",
