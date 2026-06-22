@@ -4611,7 +4611,6 @@ const styles = StyleSheet.create({
     borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
-    ...shadow.soft,
   },
   tripleMiniCardImage: {
     width: "100%",
@@ -4895,7 +4894,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     borderRadius: CARD_CORNER_RADIUS,
     overflow: "visible",
-    ...shadow.soft,
   },
   tripleCardTransitionFace: {
     ...StyleSheet.absoluteFillObject,
