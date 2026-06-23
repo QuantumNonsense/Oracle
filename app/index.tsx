@@ -4840,7 +4840,7 @@ function OracleApp() {
           styles.audioToggle,
           {
             left: spacing.md + insets.left + 20,
-            bottom: spacing.xs + insets.bottom,
+            bottom: spacing.xs + insets.bottom + 10,
           },
           pressed ? styles.audioTogglePressed : null,
         ]}
@@ -4859,7 +4859,7 @@ function OracleApp() {
             styles.journalEntriesToggle,
             {
               right: spacing.md + insets.right + windowWidth * 0.4,
-              bottom: spacing.xs + insets.bottom + windowHeight * 0.02,
+              bottom: spacing.xs + insets.bottom + windowHeight * 0.02 + 30,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
@@ -4881,7 +4881,7 @@ function OracleApp() {
             styles.drawModeToggle,
             {
               right: spacing.md + insets.right + 20,
-              bottom: spacing.xs + insets.bottom,
+              bottom: spacing.xs + insets.bottom + 10,
             },
             drawMode === "triple" ? styles.drawModeToggleActive : null,
             !canSwitchDrawMode ? styles.drawModeToggleLocked : null,
