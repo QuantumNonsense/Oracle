@@ -71,9 +71,8 @@ export const cards: Card[] = [
     image: cardImages[0],
     detailImage: detailBackground,
     description: [
-      "The mycelial network is an underground system that connects organisms, redistributes resources, and transmits information across an ecosystem. Nothing within it exists independently.",
-      "Support may be arriving quietly, indirectly, or from places you are not actively attending to. At the same time, influence moves through these same channels. Energy flows where pathways already exist. Rather than asking whether the system is good or bad, observe how energy is moving through it, and where you stand within that exchange.",
-      "This card invites both trust and discernment. Some connections nourish you. Others subtly draw from you. Neither is inherently wrong, but awareness is essential. What you are connected to is shaping how you feel, how you act, and what becomes possible next.",
+      "Mycelium is the root-like body of a fungus, while mushrooms are the little fruiting bodies that pop up above ground. Beneath the surface, mycelium forms a living web that links roots, fungi, soil, and countless tiny organisms. Along its hidden threads, nutrients move, messages travel, and support finds its way where it's needed.",
+      "This card reminds you that you are part of a wider network, even when you can't see it. Notice what quietly nourishes you, what you nourish in return, and where your energy naturally flows. Even the smallest thread can belong to something vast.",
     ],
     reflectionQuestions: [
       "Where am I being supported in ways I haven't acknowledged?",
@@ -88,9 +87,8 @@ export const cards: Card[] = [
     image: cardImages[1],
     detailImage: detailBackground,
     description: [
-      "Decomposition is the process through which what had reached the end of its life cycle is transformed into nourishment for what follows. In natural systems, nothing is wasted, and nothing is preserved forever.",
-      "This powerful process asks for cooperation rather than control. Letting something break down does not mean erasing its value or denying what it once provided. It means allowing its usefulness to change. What you release now may quietly nourish something you cannot yet see.",
-      "This card invites discernment between what is ending and what is emerging. Holding too tightly to what has completed its purpose can delay renewal. Allowing decomposition creates space for reorganization, clarity, and unexpected forms of growth.",
+      "Decomposition is nature's recycling system. Fungi, microbes, and other tiny helpers break down what has reached the end of its life and return its nutrients to the soil. Nothing stays the same forever, nothing is wasted either; what is finished simply begins changing into something new.",
+      "This card invites you to loosen your grip on what has completed its purpose. Letting go does not erase its value; it simply allows that value to change form. What is softening or falling away may already be feeding a new beginning, even if its first little shoots have not appeared yet.",
     ],
     reflectionQuestions: [
       "What am I expending energy trying to maintain that no longer supports me?",
@@ -105,9 +103,8 @@ export const cards: Card[] = [
     image: cardImages[2],
     detailImage: detailBackground,
     description: [
-      "Not all growth is healthy. Some organisms survive by extracting resources without reciprocity. They're not necessarily malevolent, but their presence does drain the system from which it feeds.",
-      "When this card appears, it invites honest examination of where energy is being taken without being returned.",
-      "This card does not assign blame. It simply asks for awareness. Parasitic dynamics can exist in habits, obligations, relationships, or internal narratives. Recognition is the first step toward rebalancing.",
+      "Some organisms grow by drawing nutrients from a host without giving anything back. They are not evil or malicious, they are simply following a survival strategy that can slowly weaken the system supporting them.",
+      "This card asks you to notice where your energy may be leaving faster than it is being restored. Parasitic dynamics can exist in relationships, habits, obligations, or thought patterns. There is no need for blame; awareness helps you see what needs a boundary, a change, or a little more balance.",
     ],
     reflectionQuestions: [
       "Where do I feel depleted after giving?",
@@ -122,9 +119,8 @@ export const cards: Card[] = [
     image: cardImages[4],
     detailImage: detailBackground,
     description: [
-      "Dormancy is discernment encoded into biology. Spores, seeds, and mycelial fragments enter dormancy not because they have failed, but because emergence under the wrong conditions would be costly or fatal. Energy is conserved, sensitivity is heightened, and responsiveness is maintained. Dormancy protects potential.",
-      "When this card appears, it suggests that something within you or around you is intentionally not expressing itself yet. This may feel like stagnation, delay, or invisibility, but dormancy is not disengagement. It is readiness without exposure.",
-      "This card often arises when pressure exists to act, decide, or reveal before sufficient support, clarity, or safety is present. Dormancy asks you to notice what signals you are waiting for. Not permission - conditions. Dormancy ends when the environment changes, not when impatience demands it.",
+      "Dormancy is nature's way of protecting potential. Spores, seeds, and pieces of mycelium can quietly conserve their energy until the conditions are right for growth. They have not failed or given up. They are simply waiting for the warmth, moisture, or support they need.",
+      "This card asks you to trust that your timing does not need to match anyone else's. Growth will come when the right conditions meet your readiness. Some things bloom best when they are allowed to arrive in their own time.",
     ],
     reflectionQuestions: [
       "Where am I pressuring myself to move prematurely?",
@@ -139,9 +135,8 @@ export const cards: Card[] = [
     image: cardImages[3],
     detailImage: detailBackground,
     description: [
-      "Pinning marks the transition from potential to expression. After a period of dormancy or unseen development, something begins to take form. This stage is highly sensitive. The structure exists, but it is not yet self-sustaining. Small changes in environment, pressure, or interference can determine whether what is emergence continues or collapses.",
-      "When this card appears, it warns against forcing progress. Attention matters more than action. Over-handling, over-exposing, or demanding outcomes too quickly can disrupt what is forming. At the same time, neglect can be just as damaging. This stage requires presence, restraint, and responsiveness.",
-      "This card asks you to notice what is beginning; not to push it forward, but to protect the conditions that allow it to continue. Growth here is not strengthened by intensity, but by stability. Timing is not optional, it is the mechanism that drives success.",
+      "Pinning is the moment tiny mushroom beginnings first appear after a period of hidden growth. The potential is finally taking shape, but it is still delicate. Small changes in moisture, airflow, temperature, or handling can help it continue or cause it to stall.",
+      "This card asks you to notice what is just beginning and give it the steady care it needs. Do not rush it, crowd it, or ask it to become more than it is ready to be. New growth does not need more pressure. It needs patience, protection, and the right conditions to keep unfolding.",
     ],
     reflectionQuestions: [
       "What is beginning to take form in my life, even if it feels tentative or unfinished?",
@@ -156,9 +151,8 @@ export const cards: Card[] = [
     image: cardImages[5],
     detailImage: detailBackground,
     description: [
-      "Fruiting bodies are the visible expression of long, unseen work, emerging only when conditions are right, and they exist for a narrow window of time. They arise fully, fulfill their purpose, and then release what they have made possible. Their function is not longevity, but transmission.",
-      "This card invites you to inhabit the moment of expression while it is here; to appreciate what has emerged without demanding that it remain unchanged. This may feel like a culmination, but it is not an endpoint. What is expressed will begin to move on its own, shaping outcomes you cannot fully predict. There is no clinging in this phase, only presence.",
-      "To fruit is to accept exposure, and to allow what has formed to exist beyond your control. Fruiting bodies emerge, release what they are meant to release, and then dissolve back into the system, enriching what may follow them. In this way, expression is not an ending, but a gift forward. What you allow to bloom now becomes nourishment for what will come next.",
+      "Fruiting bodies are the mushrooms we see above the surface, appearing after a long period of hidden growth. They emerge when conditions are right to release their spores and begin the cycle again. Their purpose is not to last forever, but to carry what has grown into its next chapter.",
+      "This card invites you to fully enjoy what is blooming now without asking it to stay the same. Let yourself be seen, share what you have created, and trust what happens after you release it. Expression is not the end of the cycle. It is a gift that gives something new a chance to begin.",
     ],
     reflectionQuestions: [
       "What in my life is reaching a point of visible expression or completion?",
@@ -173,9 +167,8 @@ export const cards: Card[] = [
     image: cardImages[6],
     detailImage: detailBackground,
     description: [
-      "Phototropism describes how organisms adjust their growth in response to light as a signal. In fungal systems, light does not provide energy, but information. Changes in illumination inform orientation - where growth should be directed, where it should slow, and when internal development may begin to shift toward external expression.",
-      "Rather than triggering acceleration, phototropism governs alignment - emphasizing direction over speed. Growth responds by turning, leaning, or rebalancing in relation to what has become visible. This process favors precision over force. A small adjustment in direction can be more effective than sustained effort in the wrong orientation. Phototropism often becomes relevant when clarity is increasing, but the structure to support full expression is not yet complete.",
-      "When this card appears, it invites you to treat awareness as a tool for navigation, not a demand for action. Light reveals options, constraints, and signals; it does not dictate outcomes. Phototropism offers a gentle reminder not to rush towards illumination, but to notice what it reveals. What is illuminated does not need to be pursued immediately, responsiveness can be selective. Orientation comes first; movement follows when the system can support it.",
+      "Phototropism is the way an organism adjusts its growth in response to light. Fungi do not use light for energy like plants do, but they can use it as information about direction, timing, and changing conditions. A small turn toward the right signal can be more useful than pushing harder in the wrong direction.",
+      "This card invites you to let new information change your direction. You do not have to keep pushing forward simply because you have already started. Notice what has become clearer, adjust your course, and trust that a small shift in orientation can open an entirely new path.",
     ],
     reflectionQuestions: [
       "What information is influencing my direction right now?",
@@ -190,9 +183,8 @@ export const cards: Card[] = [
     image: cardImages[7],
     detailImage: detailBackground,
     description: [
-      "In biology, scotophase refers to the dark portion of a cyclical rhythm, during which the absence of light supports specific physiological processes. In fungal systems, this phase is critical for mycelial development. Darkness helps retain moisture, conserve energy, and prevent premature environmental signaling. Rather than halting activity, the scotophase enables continuous growth by minimizing disruption and stabilizing internal processes.",
-      "Mycelium grows best in darkness not because it avoids light, but because darkness provides protection. Reduced illumination allows growth to spread, connect, and integrate without being pushed toward visibility or expression. Too much light too early can dry substrates, interrupt metabolic rhythms, or trigger developmental shifts the system cannot yet sustain. In this way, darkness functions as a condition that preserves readiness rather than delaying progress.",
-      "When this card appears, it suggests that something in your life is developing best outside of observation. This is not secrecy born of fear, but protection rooted in biological intelligence. Not all growth benefits from attention, feedback, or clarity while it is forming. What is protected now is preparing for a moment when responsiveness and expression can occur without harm; until then, remaining unseen is not withdrawal, but alignment with the correct phase of development.",
+      "Scotophase is the dark part of a natural light cycle. For many fungi, darkness can help protect moisture and support quiet mycelial growth beneath the surface. Darkness can create a calm, sheltered space where delicate processes continue without interruption.",
+      "This card reminds you that not everything needs to be seen while it is still becoming. Some ideas, feelings, and plans grow best with a little privacy and protection before they are ready to be illuminated.",
     ],
     reflectionQuestions: [
       "Where in my life might growth benefit from less exposure or attention?",
@@ -207,9 +199,8 @@ export const cards: Card[] = [
     image: cardImages[8],
     detailImage: detailBackground,
     description: [
-      "Adaptogens are compounds that support an organism's ability to respond to stress without becoming depleted or destabilized. Rather than pushing the system in a specific direction, they work by modulating responses to help maintain equilibrium across changing conditions. Their value lies not in intensity, but in consistency and balance.",
-      "In living systems, adaptation is not achieved through constant output or resistance, but through regulation. Adaptogens do not eliminate stress; they help the system remain functional in its presence. Over time, this preserves energy, reduces extremes, and supports resilience without forcing outcomes.",
-      "When this card appears, it suggests that what is needed now is not a decisive action or dramatic shift, but support that stabilizes you across variability. Remember that resilience is cultivated gradually. Adaptation is not about hardening against stress, but about becoming flexible enough to meet it without collapse. Adaptogens invite attention to what strengthens your baseline; the subtle inputs, rhythms, or supports that allow you to respond without burning out.",
+      "Adaptogens are non-toxic mushrooms, herbs, or roots that help the body respond to stress and return to balance. Their effects may include supporting energy, focus, calm, or clarity, depending on what the body needs.",
+      "This card reminds you that resilience grows through regular support. Rest, nourishing routines, and small choices can help you move through stress and find your balance again more easily. Notice what helps you feel steady, flexible, and ready for whatever comes next.",
     ],
     reflectionQuestions: [
       "What stressors in my life are ongoing rather than temporary?",
@@ -224,9 +215,8 @@ export const cards: Card[] = [
     image: cardImages[9],
     detailImage: detailBackground,
     description: [
-      "Spores are the reproductive units of fungi: Microscopic, lightweight structures designed for dispersal across distance. A single fruiting body may release millions or even billions of spores, yet only a small fraction will ever germinate. Most will land on surfaces that cannot support growth. Some will be destroyed by ultraviolet light, desiccation, or microbial competition. Success is not determined by intention or volume, but by compatibility between spore and environment.",
-      "Unlike seeds, spores contain minimal stored nutrients. They are built for travel, not endurance. Germination occurs only when moisture, temperature, substrate, and ecological space align. Until those conditions are met, the spore remains inert, not inactive, but restrained by reality. Fungal reproduction therefore relies on scale and timing rather than precision. It is a strategy rooted in probability and environmental responsiveness.",
-      "When this card appears, it suggests that something has been released; an idea, effort, offering, or influence, but its outcome is not fully within your control. Dispersal is not the same as establishment. What matters now is not chasing every landing site, but understanding where conditions are truly viable. Not all efforts are meant to take root. The work of the spore is to travel. The work of the environment is to decide what comes next.",
+      "Spores are tiny reproductive cells that fungi release to travel through air, water, or other living things. A mushroom may release millions of spores, but only those that land in the right moisture, temperature, and environment will begin to grow.",
+      "This card invites you to release what you have created without trying to control where every piece will land. Not every idea, effort, or offering will take root, and that does not make it wasted. Share what is ready, trust it to travel, and let the right conditions decide what grows next.",
     ],
     reflectionQuestions: [
       "What have I recently released, expressed, or sent outward?",

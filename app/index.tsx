@@ -286,34 +286,10 @@ const buildDetailLines = (
     lines.push({
       key: `rq-${card.id}-${selectedReflectionQuestionIndex}`,
       type: "bullet",
-      text: `~${selectedReflectionQuestion}`,
+      text: selectedReflectionQuestion,
     });
   }
   return lines;
-};
-
-const buildCardDetailText = (
-  card: Card | null,
-  reflectionQuestionIndex: number | null = null,
-) => {
-  if (!card) {
-    return "No description available.";
-  }
-  const lines = buildDetailLines(card, reflectionQuestionIndex).slice(1);
-  if (lines.length === 0) {
-    return "No description available.";
-  }
-  return lines
-    .map((line) => {
-      if (line.type === "heading") {
-        return line.text;
-      }
-      if (line.type === "bullet") {
-        return `• ${line.text.replace(/^~/, "")}`;
-      }
-      return line.text;
-    })
-    .join("\n\n");
 };
 
 const getTripleTransitionBackStyle = (flip: Animated.Value) => {
@@ -2872,16 +2848,16 @@ function OracleApp() {
   const selectedJournalCard = selectedJournalEntry
     ? (cardsById.get(selectedJournalEntry.cardId) ?? null)
     : null;
-  const journalDetailText = useMemo(
+  const journalDetailLines = useMemo(
     () =>
-      buildCardDetailText(
+      buildDetailLines(
         selectedJournalCard,
         selectedJournalEntry?.reflectionQuestionIndex ?? null,
-      ),
+      ).slice(1),
     [selectedJournalCard, selectedJournalEntry?.reflectionQuestionIndex],
   );
-  const journalPeekText = useMemo(
-    () => buildCardDetailText(currentCard, currentReflectionQuestionIndex),
+  const journalPeekLines = useMemo(
+    () => buildDetailLines(currentCard, currentReflectionQuestionIndex).slice(1),
     [currentCard, currentReflectionQuestionIndex],
   );
   const tripleMiniRowGap = useMemo(
@@ -4335,7 +4311,23 @@ function OracleApp() {
                                 <Text
                                   style={styles.journalCardExpandedBackText}
                                 >
-                                  {journalDetailText}
+                                  {journalDetailLines.length > 0
+                                    ? journalDetailLines.map((line, index) => (
+                                        <Text
+                                          key={line.key}
+                                          style={
+                                            line.type === "heading"
+                                              ? styles.journalCardExpandedBackHeadingText
+                                              : undefined
+                                          }
+                                        >
+                                          {line.text}
+                                          {index < journalDetailLines.length - 1
+                                            ? "\n\n"
+                                            : ""}
+                                        </Text>
+                                      ))
+                                    : "No description available."}
                                 </Text>
                               </ScrollView>
                             </View>
@@ -4454,7 +4446,23 @@ function OracleApp() {
                               allowFontScaling={false}
                               style={styles.journalPeekText}
                             >
-                              {journalPeekText}
+                              {journalPeekLines.length > 0
+                                ? journalPeekLines.map((line, index) => (
+                                    <Text
+                                      key={line.key}
+                                      style={
+                                        line.type === "heading"
+                                          ? styles.journalPeekHeadingText
+                                          : undefined
+                                      }
+                                    >
+                                      {line.text}
+                                      {index < journalPeekLines.length - 1
+                                        ? "\n\n"
+                                        : ""}
+                                    </Text>
+                                  ))
+                                : "No description available."}
                             </Text>
                           </ScrollView>
                         </View>
@@ -4999,6 +5007,7 @@ const styles = StyleSheet.create({
     fontFamily: detailFontFamilyBold,
     color: "#2b0a00",
     fontSize: Math.round(17 * 1.3),
+    textDecorationLine: "underline",
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
     textAlign: "center",
@@ -5396,6 +5405,9 @@ const styles = StyleSheet.create({
     fontFamily: appFontFamily,
     textAlign: "center",
   },
+  journalCardExpandedBackHeadingText: {
+    textDecorationLine: "underline",
+  },
   journalEntryDetailBody: {
     color: "rgba(72, 38, 15, 0.9)",
     fontSize: 14,
@@ -5540,6 +5552,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "center",
     fontFamily: appFontFamily,
+  },
+  journalPeekHeadingText: {
+    textDecorationLine: "underline",
   },
   journalActions: {
     marginTop: 0,
