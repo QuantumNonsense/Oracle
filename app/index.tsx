@@ -60,16 +60,22 @@ import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
 
-type ShuffleAnimationVariant = "classic" | "riffle" | "orbit";
+type ShuffleAnimationVariant =
+  | "classic"
+  | "riffle"
+  | "orbit"
+  | "threePileCut";
 type ShuffleAnimationMode = ShuffleAnimationVariant | "alternating" | "random";
 
-// Use "random" to choose shuffles without immediate repeats, or force a named shuffle.
+// Use "random" to choose shuffles without immediate repeats, or force a named
+// shuffle.
 const SHUFFLE_ANIMATION_MODE: ShuffleAnimationMode = "random";
 const FIRST_ALTERNATING_SHUFFLE: ShuffleAnimationVariant = "riffle";
 const SHUFFLE_ANIMATION_SEQUENCE: ShuffleAnimationVariant[] = [
   FIRST_ALTERNATING_SHUFFLE,
   "classic",
   "orbit",
+  "threePileCut",
 ];
 
 const CLASSIC_SHUFFLE_TIMING = {
@@ -88,6 +94,13 @@ const RIFFLE_SHUFFLE_TIMING = {
   RIFFLE_DURATION: 760,
   BRIDGE_DURATION: 220,
   EXPAND_DURATION: 540,
+} as const;
+const THREE_PILE_CUT_TIMING = {
+  COLLAPSE_DURATION: 576,
+  SPLIT_DURATION: 288,
+  CUT_DURATION: 984,
+  GATHER_DURATION: 300,
+  EXPAND_DURATION: 600,
 } as const;
 const SHUFFLE_SHAKE_STEPS = 6;
 const SHUFFLE_SWIRL_STEPS = 8;
@@ -108,6 +121,12 @@ const RIFFLE_SHUFFLE_TOTAL_DURATION =
   RIFFLE_SHUFFLE_TIMING.RIFFLE_DURATION +
   RIFFLE_SHUFFLE_TIMING.BRIDGE_DURATION +
   RIFFLE_SHUFFLE_TIMING.EXPAND_DURATION;
+const THREE_PILE_CUT_TOTAL_DURATION =
+  THREE_PILE_CUT_TIMING.COLLAPSE_DURATION +
+  THREE_PILE_CUT_TIMING.SPLIT_DURATION +
+  THREE_PILE_CUT_TIMING.CUT_DURATION +
+  THREE_PILE_CUT_TIMING.GATHER_DURATION +
+  THREE_PILE_CUT_TIMING.EXPAND_DURATION;
 const ORBIT_SHUFFLE_TOTAL_DURATION = 1500;
 const SHUFFLE_ORBIT_STEPS = 12;
 const CARD_FLIP_DURATION_MS = 440;
@@ -534,6 +553,8 @@ function OracleApp() {
   const shuffleRiffleInterleave = useRef(new Animated.Value(0)).current;
   const shuffleRiffleBridge = useRef(new Animated.Value(0)).current;
   const shuffleOrbit = useRef(new Animated.Value(0)).current;
+  const shuffleThreePileSplit = useRef(new Animated.Value(0)).current;
+  const shuffleThreePileCut = useRef(new Animated.Value(0)).current;
   const shuffleAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const nextAlternatingShuffleVariantRef = useRef<ShuffleAnimationVariant>(
     FIRST_ALTERNATING_SHUFFLE,
@@ -1212,6 +1233,8 @@ function OracleApp() {
     shuffleRiffleInterleave.setValue(0);
     shuffleRiffleBridge.setValue(0);
     shuffleOrbit.setValue(0);
+    shuffleThreePileSplit.setValue(0);
+    shuffleThreePileCut.setValue(0);
     selectionAnim.setValue(0);
     resetSingleSelectionAnims();
     resetTripleSelectionAnims();
@@ -1266,6 +1289,8 @@ function OracleApp() {
     shuffleRiffleInterleave,
     shuffleRiffleBridge,
     shuffleOrbit,
+    shuffleThreePileSplit,
+    shuffleThreePileCut,
     shuffleAnimRef,
   ]);
 
@@ -1705,6 +1730,8 @@ function OracleApp() {
     shuffleRiffleInterleave.setValue(0);
     shuffleRiffleBridge.setValue(0);
     shuffleOrbit.setValue(0);
+    shuffleThreePileSplit.setValue(0);
+    shuffleThreePileCut.setValue(0);
     setIsShuffling(false);
   }, [
     fanCollapse,
@@ -1713,6 +1740,8 @@ function OracleApp() {
     shuffleRiffleBridge,
     shuffleRiffleInterleave,
     shuffleRiffleSplit,
+    shuffleThreePileCut,
+    shuffleThreePileSplit,
     shuffleShake,
     shuffleSwirl,
   ]);
@@ -1724,6 +1753,8 @@ function OracleApp() {
       shuffleRiffleInterleave.setValue(0);
       shuffleRiffleBridge.setValue(0);
       shuffleOrbit.setValue(0);
+      shuffleThreePileSplit.setValue(0);
+      shuffleThreePileCut.setValue(0);
       const progress = Math.min(Math.max(initialProgress, 0), 1);
       let elapsed = CLASSIC_SHUFFLE_TOTAL_DURATION * progress;
       const consumeElapsed = (duration: number) => {
@@ -1915,6 +1946,8 @@ function OracleApp() {
       shuffleRiffleInterleave,
       shuffleRiffleSplit,
       shuffleOrbit,
+      shuffleThreePileCut,
+      shuffleThreePileSplit,
       shuffleShake,
       shuffleSwirl,
     ],
@@ -1926,6 +1959,8 @@ function OracleApp() {
       shuffleShake.setValue(0);
       shuffleSwirl.setValue(0);
       shuffleOrbit.setValue(0);
+      shuffleThreePileSplit.setValue(0);
+      shuffleThreePileCut.setValue(0);
       const progress = Math.min(Math.max(initialProgress, 0), 1);
       let elapsed = RIFFLE_SHUFFLE_TOTAL_DURATION * progress;
       const consumeElapsed = (duration: number) => {
@@ -2096,6 +2131,8 @@ function OracleApp() {
       shuffleRiffleInterleave,
       shuffleRiffleSplit,
       shuffleOrbit,
+      shuffleThreePileCut,
+      shuffleThreePileSplit,
       shuffleShake,
       shuffleSwirl,
     ],
@@ -2110,6 +2147,8 @@ function OracleApp() {
       shuffleRiffleSplit.setValue(0);
       shuffleRiffleInterleave.setValue(0);
       shuffleRiffleBridge.setValue(0);
+      shuffleThreePileSplit.setValue(0);
+      shuffleThreePileCut.setValue(0);
 
       const progress = Math.min(Math.max(initialProgress, 0), 1);
       shuffleOrbit.setValue(progress);
@@ -2136,8 +2175,176 @@ function OracleApp() {
       shuffleRiffleBridge,
       shuffleRiffleInterleave,
       shuffleRiffleSplit,
+      shuffleThreePileCut,
+      shuffleThreePileSplit,
       shuffleShake,
       shuffleSwirl,
+    ],
+  );
+
+  const startThreePileCutShuffle = useCallback(
+    (initialProgress = 0) => {
+      setIsShuffling(true);
+      shuffleShake.setValue(0);
+      shuffleSwirl.setValue(0);
+      shuffleRiffleSplit.setValue(0);
+      shuffleRiffleInterleave.setValue(0);
+      shuffleRiffleBridge.setValue(0);
+      shuffleOrbit.setValue(0);
+
+      const progress = Math.min(Math.max(initialProgress, 0), 1);
+      let elapsed = THREE_PILE_CUT_TOTAL_DURATION * progress;
+      const consumeElapsed = (duration: number) => {
+        const consumed = Math.min(elapsed, duration);
+        elapsed -= consumed;
+        return consumed;
+      };
+      const collapseElapsed = consumeElapsed(
+        THREE_PILE_CUT_TIMING.COLLAPSE_DURATION,
+      );
+      const splitElapsed = consumeElapsed(
+        THREE_PILE_CUT_TIMING.SPLIT_DURATION,
+      );
+      const cutElapsed = consumeElapsed(THREE_PILE_CUT_TIMING.CUT_DURATION);
+      const gatherElapsed = consumeElapsed(
+        THREE_PILE_CUT_TIMING.GATHER_DURATION,
+      );
+      const expandElapsed = consumeElapsed(
+        THREE_PILE_CUT_TIMING.EXPAND_DURATION,
+      );
+
+      const collapseProgress =
+        THREE_PILE_CUT_TIMING.COLLAPSE_DURATION > 0
+          ? collapseElapsed / THREE_PILE_CUT_TIMING.COLLAPSE_DURATION
+          : 1;
+      const splitProgress =
+        THREE_PILE_CUT_TIMING.SPLIT_DURATION > 0
+          ? splitElapsed / THREE_PILE_CUT_TIMING.SPLIT_DURATION
+          : 1;
+      const cutProgress =
+        THREE_PILE_CUT_TIMING.CUT_DURATION > 0
+          ? cutElapsed / THREE_PILE_CUT_TIMING.CUT_DURATION
+          : 1;
+      const gatherProgress =
+        THREE_PILE_CUT_TIMING.GATHER_DURATION > 0
+          ? gatherElapsed / THREE_PILE_CUT_TIMING.GATHER_DURATION
+          : 1;
+      const expandProgress =
+        THREE_PILE_CUT_TIMING.EXPAND_DURATION > 0
+          ? expandElapsed / THREE_PILE_CUT_TIMING.EXPAND_DURATION
+          : 1;
+
+      if (collapseElapsed < THREE_PILE_CUT_TIMING.COLLAPSE_DURATION) {
+        fanCollapse.setValue(collapseProgress);
+      } else if (expandElapsed > 0) {
+        fanCollapse.setValue(1 - expandProgress);
+      } else if (progress >= 1) {
+        fanCollapse.setValue(0);
+      } else {
+        fanCollapse.setValue(1);
+      }
+
+      if (expandElapsed > 0 || progress >= 1) {
+        shuffleThreePileSplit.setValue(0);
+        shuffleThreePileCut.setValue(0);
+      } else if (splitElapsed < THREE_PILE_CUT_TIMING.SPLIT_DURATION) {
+        shuffleThreePileSplit.setValue(splitProgress);
+        shuffleThreePileCut.setValue(0);
+      } else if (cutElapsed < THREE_PILE_CUT_TIMING.CUT_DURATION) {
+        shuffleThreePileSplit.setValue(1);
+        shuffleThreePileCut.setValue(cutProgress);
+      } else if (gatherElapsed < THREE_PILE_CUT_TIMING.GATHER_DURATION) {
+        shuffleThreePileSplit.setValue(1 - gatherProgress);
+        shuffleThreePileCut.setValue(1);
+      } else {
+        shuffleThreePileSplit.setValue(0);
+        shuffleThreePileCut.setValue(0);
+      }
+
+      const animationSteps: Animated.CompositeAnimation[] = [];
+      const collapseRemaining =
+        THREE_PILE_CUT_TIMING.COLLAPSE_DURATION - collapseElapsed;
+      if (collapseRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 1,
+            duration: collapseRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const splitRemaining =
+        THREE_PILE_CUT_TIMING.SPLIT_DURATION - splitElapsed;
+      if (splitRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleThreePileSplit, {
+            toValue: 1,
+            duration: splitRemaining,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const cutRemaining = THREE_PILE_CUT_TIMING.CUT_DURATION - cutElapsed;
+      if (cutRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleThreePileCut, {
+            toValue: 1,
+            duration: cutRemaining,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const gatherRemaining =
+        THREE_PILE_CUT_TIMING.GATHER_DURATION - gatherElapsed;
+      if (gatherRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(shuffleThreePileSplit, {
+            toValue: 0,
+            duration: gatherRemaining,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const expandRemaining =
+        THREE_PILE_CUT_TIMING.EXPAND_DURATION - expandElapsed;
+      if (expandRemaining > 0) {
+        animationSteps.push(
+          Animated.timing(fanCollapse, {
+            toValue: 0,
+            duration: expandRemaining,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        );
+      }
+
+      const animation = Animated.sequence(animationSteps);
+      shuffleAnimRef.current = animation;
+      animation.start(({ finished }) => {
+        if (finished) {
+          handleShuffleDone();
+        }
+      });
+    },
+    [
+      fanCollapse,
+      handleShuffleDone,
+      shuffleOrbit,
+      shuffleRiffleBridge,
+      shuffleRiffleInterleave,
+      shuffleRiffleSplit,
+      shuffleShake,
+      shuffleSwirl,
+      shuffleThreePileCut,
+      shuffleThreePileSplit,
     ],
   );
 
@@ -2175,9 +2382,18 @@ function OracleApp() {
         startRiffleShuffle(initialProgress);
         return;
       }
-      startOrbitShuffle(initialProgress);
+      if (variant === "orbit") {
+        startOrbitShuffle(initialProgress);
+        return;
+      }
+      startThreePileCutShuffle(initialProgress);
     },
-    [startClassicShuffle, startOrbitShuffle, startRiffleShuffle],
+    [
+      startClassicShuffle,
+      startOrbitShuffle,
+      startRiffleShuffle,
+      startThreePileCutShuffle,
+    ],
   );
 
   useEffect(() => {
@@ -2492,6 +2708,12 @@ function OracleApp() {
       }
       if (drawMode === "triple") {
         const alreadySelected = selectedSlots.includes(slotIndex);
+        if (isConfirmOpenRef.current) {
+          if (alreadySelected) {
+            handleConfirmSelection(true);
+          }
+          return;
+        }
         if (alreadySelected) {
           animateTripleSelectionSlot(slotIndex, 0);
           const next = selectedSlots.filter((slot) => slot !== slotIndex);
@@ -2505,7 +2727,8 @@ function OracleApp() {
         const next = [...selectedSlots, slotIndex];
         setSelectedSlots(next);
         if (next.length === 3) {
-          startTripleCardTransition(next);
+          isConfirmOpenRef.current = true;
+          setIsConfirmOpen(true);
         }
         return;
       }
@@ -2540,7 +2763,6 @@ function OracleApp() {
       drawMode,
       isShuffling,
       selectedSlots,
-      startTripleCardTransition,
     ],
   );
 
@@ -2729,6 +2951,14 @@ function OracleApp() {
   );
   const riffleBridgeLift = useMemo(
     () => Math.min(fanCardHeight * 0.035, 8),
+    [fanCardHeight],
+  );
+  const threePileCutDistance = useMemo(
+    () => Math.min(fanCardWidth * 0.48, 76),
+    [fanCardWidth],
+  );
+  const threePileCutLift = useMemo(
+    () => Math.min(fanCardHeight * 0.07, 16),
     [fanCardHeight],
   );
   const orbitRadiusX = useMemo(
@@ -3668,6 +3898,95 @@ function OracleApp() {
                       inputRange: [0, 0.45, 1],
                       outputRange: [1, 0.985, 1],
                     });
+                    const threePilePacketSize = Math.ceil(
+                      fanSlots.length / 3,
+                    );
+                    const threePilePacketIndex = Math.min(
+                      Math.floor(index / threePilePacketSize),
+                      2,
+                    );
+                    const threePileBaseX =
+                      (threePilePacketIndex - 1) * threePileCutDistance;
+                    const threePileBaseY =
+                      threePilePacketIndex === 1
+                        ? -threePileCutLift * 0.7
+                        : threePileCutLift * 0.35;
+                    const threePileBaseRotate =
+                      (threePilePacketIndex - 1) * 2.5;
+                    const threePileSwapXOutput =
+                      threePilePacketIndex === 0
+                        ? [
+                            0,
+                            threePileCutDistance * 2,
+                            threePileCutDistance,
+                            0,
+                          ]
+                        : threePilePacketIndex === 1
+                          ? [
+                              0,
+                              -threePileCutDistance,
+                              threePileCutDistance,
+                              0,
+                            ]
+                          : [
+                              0,
+                              -threePileCutDistance,
+                              -threePileCutDistance * 2,
+                              0,
+                            ];
+                    const threePileSwapYOutput =
+                      threePilePacketIndex === 0
+                        ? [
+                            0,
+                            -threePileCutLift,
+                            -threePileCutLift * 0.65,
+                            0,
+                          ]
+                        : threePilePacketIndex === 1
+                          ? [
+                              0,
+                              threePileCutLift * 0.55,
+                              -threePileCutLift,
+                              0,
+                            ]
+                          : [
+                              0,
+                              -threePileCutLift * 0.55,
+                              threePileCutLift * 0.65,
+                              0,
+                            ];
+                    const threePileSwapRotateOutput =
+                      threePilePacketIndex === 0
+                        ? ["0deg", "6deg", "-3deg", "0deg"]
+                        : threePilePacketIndex === 1
+                          ? ["0deg", "-4deg", "5deg", "0deg"]
+                          : ["0deg", "3deg", "-6deg", "0deg"];
+                    const threePileSplitX = Animated.multiply(
+                      shuffleThreePileSplit,
+                      threePileBaseX,
+                    );
+                    const threePileSplitY = Animated.multiply(
+                      shuffleThreePileSplit,
+                      threePileBaseY,
+                    );
+                    const threePileSplitRotate =
+                      shuffleThreePileSplit.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", `${threePileBaseRotate}deg`],
+                      });
+                    const threePileSwapX = shuffleThreePileCut.interpolate({
+                      inputRange: [0, 0.36, 0.7, 1],
+                      outputRange: threePileSwapXOutput,
+                    });
+                    const threePileSwapY = shuffleThreePileCut.interpolate({
+                      inputRange: [0, 0.36, 0.7, 1],
+                      outputRange: threePileSwapYOutput,
+                    });
+                    const threePileSwapRotate =
+                      shuffleThreePileCut.interpolate({
+                        inputRange: [0, 0.36, 0.7, 1],
+                        outputRange: threePileSwapRotateOutput,
+                      });
                     const orbitPhaseOffset =
                       (index / Math.max(fanSlots.length, 1)) * Math.PI * 2;
                     const orbitXBase = shuffleOrbit.interpolate({
@@ -3710,15 +4029,26 @@ function OracleApp() {
                       riffleSplitX,
                       Animated.add(riffleFlickX, riffleBridgeX),
                     );
+                    const threePileOffsetX = Animated.add(
+                      threePileSplitX,
+                      threePileSwapX,
+                    );
+                    const threePileOffsetY = Animated.add(
+                      threePileSplitY,
+                      threePileSwapY,
+                    );
                     const shuffleOffsetX = Animated.add(
                       Animated.add(shakeX, swirlX),
-                      Animated.add(riffleOffsetX, orbitX),
+                      Animated.add(
+                        riffleOffsetX,
+                        Animated.add(orbitX, threePileOffsetX),
+                      ),
                     );
                     const shuffleOffsetY = Animated.add(
                       Animated.add(shakeY, swirlY),
                       Animated.add(
                         Animated.add(riffleLiftY, riffleBridgeY),
-                        orbitY,
+                        Animated.add(orbitY, threePileOffsetY),
                       ),
                     );
                     return (
@@ -3753,6 +4083,8 @@ function OracleApp() {
                               { rotate: riffleSplitRotate },
                               { rotate: riffleFlickRotate },
                               { rotate: riffleBridgeRotate },
+                              { rotate: threePileSplitRotate },
+                              { rotate: threePileSwapRotate },
                               { rotate: orbitRotate },
                               { scale },
                               { scale: orbitScale },
@@ -4715,7 +5047,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   tapHintConfirm: {
-    fontSize: Math.round((typography.subtitle + 2) * 1.3 * 0.8),
+    fontSize: Math.round((typography.subtitle + 2) * 1.3),
   },
   tapHintWrap: {
     position: "relative",
