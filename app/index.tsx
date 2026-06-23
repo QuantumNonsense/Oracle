@@ -4002,7 +4002,6 @@ function OracleApp() {
                           </ImageBackground>
                         }
                         style={[
-                          styles.tripleExpandedCard,
                           {
                             width: cardWidth * 1.05,
                             height: cardWidth * CARD_HEIGHT_RATIO * 1.05,
@@ -4808,9 +4807,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-  },
-  tripleExpandedCard: {
-    ...shadow.soft,
   },
   tripleExpandedImage: {
     width: "100%",

@@ -10,7 +10,7 @@ import {
   type ViewStyle,
   View,
 } from "react-native";
-import { colors, shadow } from "../theme";
+import { colors } from "../theme";
 import { CARD_ASPECT_RATIO, CARD_CORNER_RADIUS } from "../lib/cardLayout";
 
 type CardFlipProps = {
@@ -49,7 +49,6 @@ export default function CardFlip({
   const liftTranslate = useRef(new Animated.Value(0)).current;
   const idleScale = useRef(new Animated.Value(1)).current;
   const idleTranslate = useRef(new Animated.Value(0)).current;
-  const glowPulse = useRef(new Animated.Value(0)).current;
   const isRevealing = useRef(false);
   const idleLoop = useRef<Animated.CompositeAnimation | null>(null);
   const isFrontRef = useRef(isFront);
@@ -235,26 +234,6 @@ export default function CardFlip({
     [idleScale, idleTranslate, liftScale, liftTranslate]
   );
 
-  const glowStyle = useMemo(
-    () => ({
-      opacity: glowPulse.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.1, 0.22],
-      }),
-      transform: [
-        { translateX: -160 },
-        { translateY: -220 },
-        {
-          scale: glowPulse.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, 1.06],
-          }),
-        },
-      ],
-    }),
-    [glowPulse]
-  );
-
   const startIdleIfNeeded = () => {
     if (!idle || isFrontRef.current || isRevealing.current) {
       return;
@@ -325,12 +304,6 @@ export default function CardFlip({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(glowPulse, {
-        toValue: 1,
-        duration: 200,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
     ]);
 
     onBeforeFlip?.();
@@ -348,12 +321,6 @@ export default function CardFlip({
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(glowPulse, {
-        toValue: 0,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
     ]);
 
     isRevealing.current = false;
@@ -366,7 +333,6 @@ export default function CardFlip({
       style={styles.wrapper}
       disabled={disabled}
     >
-      <Animated.View style={[styles.glow, glowStyle]} />
       <Animated.View style={[styles.cardFrame, style, cardPresenceStyle]}>
         <Animated.View style={[styles.card3d, flipAnimatedStyle]}>
           {!ios ? (
@@ -411,17 +377,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-  },
-  glow: {
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    width: 320,
-    height: 440,
-    borderRadius: 200,
-    backgroundColor: colors.accentLavender,
-    opacity: 0.12,
-    ...shadow.glow,
   },
   cardFrame: {
     aspectRatio: CARD_ASPECT_RATIO,
