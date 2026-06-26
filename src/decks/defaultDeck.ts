@@ -71,8 +71,8 @@ export const cards: Card[] = [
     image: cardImages[0],
     detailImage: detailBackground,
     description: [
-      "Mycelium is the root-like body of a fungus, while mushrooms are the little fruiting bodies that pop up above ground. Beneath the surface, mycelium forms a living web that links roots, fungi, soil, and countless tiny organisms. Along its hidden threads, nutrients move, messages travel, and support finds its way where it's needed.",
-      "This card reminds you that you are part of a wider network, even when you can't see it. Notice what quietly nourishes you, what you nourish in return, and where your energy naturally flows. Even the smallest thread can belong to something vast.",
+      "Mycelium (my-SEE-lee-um) is the root-like body of a fungus, while mushrooms are the little fruiting bodies that pop up above ground. Beneath the surface, mycelium forms a living web that links roots, fungi, soil, and countless tiny organisms. Along its hidden threads, nutrients move, messages travel, and support finds its way where it’s needed.",
+      "This card reminds you that you are part of a wider network, even when you can’t see it. Notice what quietly nourishes you, what you nourish in return, and where your energy naturally flows. Even the smallest thread can belong to something vast.",
     ],
     reflectionQuestions: [
       "Where am I being supported in ways I haven't acknowledged?",
@@ -87,7 +87,7 @@ export const cards: Card[] = [
     image: cardImages[1],
     detailImage: detailBackground,
     description: [
-      "Decomposition is nature's recycling system. Fungi, microbes, and other tiny helpers break down what has reached the end of its life and return its nutrients to the soil. Nothing stays the same forever, nothing is wasted either; what is finished simply begins changing into something new.",
+      "Decomposition is nature’s recycling system. Fungi, microbes, and other tiny helpers break down what has reached the end of its life and return its nutrients to the soil. Nothing stays the same forever, nothing is wasted either; what is finished simply begins changing into something new.",
       "This card invites you to loosen your grip on what has completed its purpose. Letting go does not erase its value; it simply allows that value to change form. What is softening or falling away may already be feeding a new beginning, even if its first little shoots have not appeared yet.",
     ],
     reflectionQuestions: [
@@ -119,8 +119,8 @@ export const cards: Card[] = [
     image: cardImages[4],
     detailImage: detailBackground,
     description: [
-      "Dormancy is nature's way of protecting potential. Spores, seeds, and pieces of mycelium can quietly conserve their energy until the conditions are right for growth. They have not failed or given up. They are simply waiting for the warmth, moisture, or support they need.",
-      "This card asks you to trust that your timing does not need to match anyone else's. Growth will come when the right conditions meet your readiness. Some things bloom best when they are allowed to arrive in their own time.",
+      "Dormancy is nature’s way of protecting potential. Spores, seeds, and pieces of mycelium can quietly conserve their energy until the conditions are right for growth. They have not failed or given up. They are simply waiting for the warmth, moisture, or support they need.",
+      "This card asks you to trust that your timing does not need to match anyone else’s. Growth will come when the right conditions meet your readiness. Some things bloom best when they are allowed to arrive in their own time.",
     ],
     reflectionQuestions: [
       "Where am I pressuring myself to move prematurely?",
@@ -167,7 +167,7 @@ export const cards: Card[] = [
     image: cardImages[6],
     detailImage: detailBackground,
     description: [
-      "Phototropism is the way an organism adjusts its growth in response to light. Fungi do not use light for energy like plants do, but they can use it as information about direction, timing, and changing conditions. A small turn toward the right signal can be more useful than pushing harder in the wrong direction.",
+      "Phototropism (foh-TAH-truh-pih-zum) is the way an organism adjusts its growth in response to light. Fungi do not use light for energy like plants do, but they can use it as information about direction, timing, and changing conditions. A small turn toward the right signal can be more useful than pushing harder in the wrong direction.",
       "This card invites you to let new information change your direction. You do not have to keep pushing forward simply because you have already started. Notice what has become clearer, adjust your course, and trust that a small shift in orientation can open an entirely new path.",
     ],
     reflectionQuestions: [
@@ -183,7 +183,7 @@ export const cards: Card[] = [
     image: cardImages[7],
     detailImage: detailBackground,
     description: [
-      "Scotophase is the dark part of a natural light cycle. For many fungi, darkness can help protect moisture and support quiet mycelial growth beneath the surface. Darkness can create a calm, sheltered space where delicate processes continue without interruption.",
+      "Scotophase (SKOH-toh-fayz) is the dark part of a natural light cycle. For many fungi, darkness can help protect moisture and support quiet mycelial growth beneath the surface. Darkness can create a calm, sheltered space where delicate processes continue without interruption.",
       "This card reminds you that not everything needs to be seen while it is still becoming. Some ideas, feelings, and plans grow best with a little privacy and protection before they are ready to be illuminated.",
     ],
     reflectionQuestions: [
@@ -199,7 +199,7 @@ export const cards: Card[] = [
     image: cardImages[8],
     detailImage: detailBackground,
     description: [
-      "Adaptogens are non-toxic mushrooms, herbs, or roots that help the body respond to stress and return to balance. Their effects may include supporting energy, focus, calm, or clarity, depending on what the body needs.",
+      "Adaptogens (uh-DAP-tuh-jenz) are non-toxic mushrooms, herbs, or roots that help the body respond to stress and return to balance. Their effects may include supporting energy, focus, calm, or clarity, depending on what the body needs.",
       "This card reminds you that resilience grows through regular support. Rest, nourishing routines, and small choices can help you move through stress and find your balance again more easily. Notice what helps you feel steady, flexible, and ready for whatever comes next.",
     ],
     reflectionQuestions: [
@@ -215,7 +215,7 @@ export const cards: Card[] = [
     image: cardImages[9],
     detailImage: detailBackground,
     description: [
-      "Spores are tiny reproductive cells that fungi release to travel through air, water, or other living things. A mushroom may release millions of spores, but only those that land in the right moisture, temperature, and environment will begin to grow.",
+      "Spores are tiny reproductive cells released by fungi, which may travel through air, water, or even other living things before settling somewhere new. A mushroom may release millions of spores, but only those that land in the right moisture, temperature, and environment will begin to grow.",
       "This card invites you to release what you have created without trying to control where every piece will land. Not every idea, effort, or offering will take root, and that does not make it wasted. Share what is ready, trust it to travel, and let the right conditions decide what grows next.",
     ],
     reflectionQuestions: [
@@ -231,7 +231,7 @@ export const cards: Card[] = [
     image: cardImages[10],
     detailImage: detailBackground,
     description: [
-      "Hyphae are the microscopic threads that make up the body of a fungus. Each one grows from its tip, breaking down and absorbing nutrients as it moves through its environment. Together, countless tiny extensions allow the fungus to explore, adapt, and expand one small step at a time.",
+      "Hyphae (HY-fee) are the microscopic threads that make up the body of a fungus. Each one grows from its tip, breaking down and absorbing nutrients as it moves through its environment. Together, countless tiny extensions allow the fungus to explore, adapt, and expand one small step at a time.",
       "This card invites you to meet the edge of what you know with curiosity. You do not need to see the entire path before moving forward. Take the next small step, learn from what you encounter, and let each new discovery shape where you grow next.",
     ],
     reflectionQuestions: [
@@ -247,7 +247,7 @@ export const cards: Card[] = [
     image: cardImages[11],
     detailImage: detailBackground,
     description: [
-      "Not all mushrooms have gills. In boletes, polypores, and other fungi, spores develop inside tiny tubes beneath the cap and exit through small openings called pores. This compact structure accomplishes the same reproductive purpose through a different design.",
+      "Not all mushrooms have gills. Some types of fungi like boletes (boh-LEETS) and polypores develop their spores inside tiny tubes beneath the cap and exit through small openings called pores. This compact structure accomplishes the same reproductive purpose through a different design.",
       "This card reminds you that there is rarely only one right way forward. A familiar method may no longer fit, but the goal can remain the same. Let the path change when it needs to, and choose the approach that works best for where you are now.",
     ],
     reflectionQuestions: [
@@ -263,7 +263,7 @@ export const cards: Card[] = [
     image: cardImages[12],
     detailImage: detailBackground,
     description: [
-      "Gills, also called lamellae, are the thin ribbing beneath many mushroom caps where spores are produced. Their closely spaced folds create a large surface area within a small space, allowing the mushroom to release far more spores than a flat surface could hold.",
+      "Gills, also called lamellae (luh-MEL-ee), are the thin ribbing beneath many mushroom caps where spores are produced. Their closely spaced folds create a large surface area within a small space, allowing the mushroom to release far more spores than a flat surface could hold.",
       "This card invites you to look at how your time, energy, and resources are arranged. You may not need to work harder or make more room. A thoughtful change in structure can expand what you are able to create, support, and share.",
     ],
     reflectionQuestions: [
@@ -295,7 +295,7 @@ export const cards: Card[] = [
     image: cardImages[14],
     detailImage: detailBackground,
     description: [
-      "The cap, also called the pileus, gives many mushrooms their familiar silhouette. It often begins curled around the delicate gills, then widens or flattens as the mushroom matures. Its changing shape protects new growth at first, then helps spores travel when the time is right.",
+      "The cap, also called the pileus (PIE-lee-us), gives many mushrooms their familiar silhouette. It often begins curled around the delicate gills, then widens or flattens as the mushroom matures. Its changing shape protects new growth at first, then helps spores travel when the time is right.",
       "This card invites you to notice whether the shape of your life still supports who you are becoming. What once required protection may now need more room to open and expand. Allow your form to adapt as your purpose evolves.",
     ],
     reflectionQuestions: [
@@ -343,7 +343,7 @@ export const cards: Card[] = [
     image: cardImages[17],
     detailImage: detailBackground,
     description: [
-      "Mycorrhizae are partnerships between fungi and plant roots. The fungus helps the plant reach more water and nutrients through the soil, while the plant shares sugars made through photosynthesis. Together, they can access and sustain more than either could alone.",
+      "Mycorrhizae (my-kuh-RYE-zee) are partnerships between fungi and plant roots. The fungus helps the plant reach more water and nutrients through the soil, while the plant shares sugars made through photosynthesis. Together, they can access and sustain more than either could alone.",
       "This card invites you to notice and foster relationships in your life that expand what is possible for everyone involved. Remember that reciprocity does not mean giving the exact same thing in equal amounts; it means each person brings something valuable, and the connection leaves both sides stronger, better supported, and able to reach a little farther.",
     ],
     reflectionQuestions: [
