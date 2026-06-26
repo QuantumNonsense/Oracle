@@ -16,7 +16,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -29,7 +35,28 @@
       }
     },
     "android": {
-      "package": "com.quantumnonsense.oracle"
+      "package": "com.quantumnonsense.oracle",
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": true,
+      "splash": {
+        "backgroundColor": "#121024",
+        "resizeMode": "contain"
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#121024",
+      "barStyle": "light-content",
+      "translucent": false
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#121024",
+      "barStyle": "light-content",
+      "enforceContrast": false
     },
     "extra": {
       "router": {},

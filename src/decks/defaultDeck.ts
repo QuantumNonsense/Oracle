@@ -231,9 +231,8 @@ export const cards: Card[] = [
     image: cardImages[10],
     detailImage: detailBackground,
     description: [
-      "Hyphae are the microscopic, thread-like filaments that make up the body of a fungus. Each hypha grows by extending at its tip, pushing forward into new territory while secreting enzymes that break down the material it encounters. Unlike organisms that expand through centralized organs, fungi advance through countless individual points of outward movement. Growth is not explosive; it is continuous, incremental, and persistent.",
-      "This form of extension allows fungi to explore, assess, and respond to their environment in real time. A hyphal tip changes direction when it encounters resistance, nutrient gradients, or physical barriers. Expansion is adaptive rather than rigid. Progress depends on sustained contact with what is immediately ahead, not on leaps across empty space.",
-      "When this card appears, it suggests that advancement may be best achieved through steady extension rather than dramatic overhaul. Consider where small, forward-facing movements repeated consistently could accumulate into meaningful expansion. Growth at the tip requires attention to what is directly in front of you. The next step shapes the path.",
+      "Hyphae are the microscopic threads that make up the body of a fungus. Each one grows from its tip, breaking down and absorbing nutrients as it moves through its environment. Together, countless tiny extensions allow the fungus to explore, adapt, and expand one small step at a time.",
+      "This card invites you to meet the edge of what you know with curiosity. You do not need to see the entire path before moving forward. Take the next small step, learn from what you encounter, and let each new discovery shape where you grow next.",
     ],
     reflectionQuestions: [
       "What immediate conditions am I encountering at the edge of growth?",
@@ -248,9 +247,8 @@ export const cards: Card[] = [
     image: cardImages[11],
     detailImage: detailBackground,
     description: [
-      "Not all fungi disperse spores through gills. In many species, including boletes and polypores, the underside of the cap is composed of tightly packed tubes that open as pores. Spores form along the inner walls of these tubes and are released through the small openings below. Though less exposed than gills, this structure still provides the necessary surface area for effective dispersal.",
-      "This variation reflects a different architectural approach to the same biological function. Pores create a more compact and often more durable structure, sometimes allowing the fruiting body to persist longer in changing conditions. While the form differs, the outcome does not. The method adapts, but the purpose is preserved.",
-      "When this card appears, it invites reflection on how function can be maintained across changing forms. A familiar approach may not be the only viable one. What matters is not adherence to a single method, but whether the structure in place supports the intended result. Variation does not imply deviation; it may be the most effective response to present conditions.",
+      "Not all mushrooms have gills. In boletes, polypores, and other fungi, spores develop inside tiny tubes beneath the cap and exit through small openings called pores. This compact structure accomplishes the same reproductive purpose through a different design.",
+      "This card reminds you that there is rarely only one right way forward. A familiar method may no longer fit, but the goal can remain the same. Let the path change when it needs to, and choose the approach that works best for where you are now.",
     ],
     reflectionQuestions: [
       "Where am I using the same approach, hoping for different outcomes?",
@@ -265,9 +263,8 @@ export const cards: Card[] = [
     image: cardImages[12],
     detailImage: detailBackground,
     description: [
-      "Lamellae, or gills, are the thin, blade-like structures located on the underside of many mushroom caps. Their primary function is to increase surface area for spore production. By arranging tissue into closely spaced plates, the mushroom multiplies the space available for reproductive cells without dramatically increasing overall size. This architectural strategy allows for immense spore output within a compact form.",
-      "The effectiveness of a mushroom's reproduction depends not only on its presence, but on how its internal structures are organized. The spacing, density, and exposure of gills influence airflow and spore dispersal efficiency. The underside, often unseen, determines the scale of what can be released into the environment. Form governs function.",
-      "When this card appears, it invites reflection on design rather than effort. Output is shaped by structure. The way you organize your time, systems, communication, or resources influences what you are capable of generating. Consider whether your underlying architecture supports the scale of release you intend. Capacity is not only about volume, it is about arrangement.",
+      "Gills, also called lamellae, are the thin ribbing beneath many mushroom caps where spores are produced. Their closely spaced folds create a large surface area within a small space, allowing the mushroom to release far more spores than a flat surface could hold.",
+      "This card invites you to look at how your time, energy, and resources are arranged. You may not need to work harder or make more room. A thoughtful change in structure can expand what you are able to create, support, and share.",
     ],
     reflectionQuestions: [
       "What underlying structures support the output I'm producing?",
@@ -282,9 +279,8 @@ export const cards: Card[] = [
     image: cardImages[13],
     detailImage: detailBackground,
     description: [
-      "In mycology, field capacity refers to the proportion of water in a material that is biologically available for use. It is measured on a scale from 0 to 1, with pure water at 1.0. Fungi require a minimum level of available water to sustain metabolism, transport nutrients, and maintain cellular structure. When water activity falls below that threshold, growth slows or stops, regardless of how much total moisture the environment appears to contain.",
-      "However, more is not always better. Excessive water can reduce oxygen availability within a substrate, creating conditions that inhibit fungal metabolism or favor competing organisms. Fungi are aerobic; they require oxygen as well as moisture. Productive growth occurs within a range - not at the driest edge, and not at full saturation. Viability depends on balance between availability and stability.",
-      "When this card appears, it invites examination of what is functionally accessible in your environment. Resources may exist in theory, but are they usable? Support may appear abundant, but does it allow space to breathe? Systems operate within optimal ranges. Below a certain point, effort cannot compensate for depletion. Above another, saturation creates constraint. Consider not only how much surrounds you, but whether it is proportioned in a way that sustains steady function.",
+      "Field capacity is the amount of water a substrate can hold after the excess has drained away. Enough moisture remains to support growth, while open spaces in the substrate still allow oxygen to move through. Healthy growth depends not only on what is present, but on whether it is available in a form the system can actually use.",
+      "This card invites you to notice what truly supports you. Resources, care, and opportunities may surround you, but abundance can become overwhelming when there is no room to breathe. Hold what nourishes you, let the excess flow away, and create space for what you receive to become useful.",
     ],
     reflectionQuestions: [
       "Which of the resources in my life are actually accessible and usable right now?",
@@ -299,9 +295,8 @@ export const cards: Card[] = [
     image: cardImages[14],
     detailImage: detailBackground,
     description: [
-      "The cap, technically referred to as the pileus, is the upper structure of many mushrooms. In early development, it is often tightly curved downward, protecting the spore-producing surfaces beneath. As the mushroom matures, the cap expands, flattens, or even inverts. These shifts are not decorative; they influence airflow, moisture regulation, and the mechanics of spore dispersal.",
-      "The cap does not remain fixed in one configuration. Its shape changes in accordance with developmental stage and environmental interaction. A curved margin protects immature tissues. A broadened or flattened surface improves spore release. In some species, texture and color shift as hydration levels change. The architecture adjusts as the needs of the organism change.",
-      "When this card appears, it invites reflection on how your own structures may be reshaping with maturity. What once required containment may now require expansion. Adaptation of form is not inconsistency; it is responsiveness. Consider whether your current configuration matches your present function. Growth often involves restructuring, not just enlargement.",
+      "The cap, also called the pileus, gives many mushrooms their familiar silhouette. It often begins curled around the delicate gills, then widens or flattens as the mushroom matures. Its changing shape protects new growth at first, then helps spores travel when the time is right.",
+      "This card invites you to notice whether the shape of your life still supports who you are becoming. What once required protection may now need more room to open and expand. Allow your form to adapt as your purpose evolves.",
     ],
     reflectionQuestions: [
       "What functional demands are shaping my current form?",
@@ -316,9 +311,8 @@ export const cards: Card[] = [
     image: cardImages[15],
     detailImage: detailBackground,
     description: [
-      "In mycology, a substrate is the material in which a fungus grows and from which it draws nutrients. This may be decaying wood, leaf litter, soil, compost, or even living roots. Fungi do not generate their own energy from sunlight; they rely entirely on the chemical composition of the material they inhabit. Each species is adapted to specific substrates, equipped with enzymes capable of breaking down certain compounds and not others. What can grow is determined by what is available to be metabolized.",
-      "Substrate provides more than nutrients; it influences moisture retention, aeration, structural stability, and microbial competition. Even if spores or living fungal tissue are present, growth cannot proceed without suitable material to sustain it. A mismatch between organism and substrate results not in failure, but in non-establishment. The environment does not accommodate every possibility.",
-      "When this card appears, it invites examination of the material conditions underlying your current efforts. Ambition, intention, and effort matter, but they do not override environment. What are you attempting to grow within, and does it contain the resources required? Sometimes change does not require greater force, but different ground.",
+      "A substrate is the material a fungus grows in and feeds from, such as wood, soil, compost, or leaf litter. Different fungi need different substrates, and even the most promising spore cannot grow without the right nutrients, moisture, and structure beneath it.",
+      "This card invites you to look closely at what is supporting your growth. Effort and intention matter, but they cannot provide everything an unsuitable environment lacks. Ask whether your current conditions contain what you need to thrive. You may not need to try harder. You may simply need different ground.",
     ],
     reflectionQuestions: [
       "Is there a mismatch between what I want to grow and where I am placing it?",
@@ -333,9 +327,8 @@ export const cards: Card[] = [
     image: cardImages[16],
     detailImage: detailBackground,
     description: [
-      "In many mushroom species, a thin membrane called a veil covers and protects the developing spore-producing surfaces. The partial veil stretches from the cap to the stem, shielding the gills while the fruiting body matures. In some species, a universal veil surrounds the entire immature mushroom. As growth continues, the veil tears, leaving remnants behind - often visible as a ring on the stem or fragments on the cap.",
-      "The veil functions as temporary protection. It prevents desiccation and shields delicate tissues until they are structurally ready for exposure. But once the mushroom expands, the membrane must rupture. Retaining it would restrict development and spore release. Protection that once preserved growth eventually becomes an obstacle to it.",
-      "When this card appears, it suggests that something in your life may be approaching the edge of exposure. Safeguards, boundaries, or protective structures that were once necessary may now be ready to thin or tear. Consider whether continued enclosure supports growth - or inhibits it. Development requires timing, but it also requires eventual opening.",
+      "A veil is a thin membrane that protects the delicate parts of a young mushroom as it develops. As the mushroom grows, the veil stretches and eventually tears, allowing the gills to open and release their spores. What once kept the mushroom safe must give way for growth to continue.",
+      "This card invites you to notice which protections have helped you reach this point, and which may now be holding you back. You do not need to discard anything, but you may be ready to loosen your grip on something, step forward, and let more of yourself be seen.",
     ],
     reflectionQuestions: [
       "Where in my life have I been protected or shielded?",
@@ -350,9 +343,8 @@ export const cards: Card[] = [
     image: cardImages[17],
     detailImage: detailBackground,
     description: [
-      "Mycorrhizae are symbiotic associations between fungal networks and plant roots. The fungus extends fine filaments through the soil, increasing the plant's access to water and mineral nutrients that roots alone cannot efficiently reach. In return, the plant supplies the fungus with carbohydrates produced through photosynthesis. Neither organism is self-sufficient in this exchange; both benefit through cooperation shaped by long evolutionary history.",
-      "This relationship is not sentimental, it is functional. The plant gains expanded reach into the soil. The fungus gains a reliable energy source. Forest ecosystems depend heavily on these partnerships. In many cases, seedlings struggle to establish without compatible fungal associations. The success of one partner is tied to the viability of the other.",
-      "When this card appears, it invites reflection on reciprocal structures in your life; to notice where there is a genuine exchange of resources, skills, or energy. Mutualism does not imply equality of output, but balance of benefit. Consider whether your relationships operate through sustained exchange, and whether both sides are strengthened through participation.",
+      "Mycorrhizae are partnerships between fungi and plant roots. The fungus helps the plant reach more water and nutrients through the soil, while the plant shares sugars made through photosynthesis. Together, they can access and sustain more than either could alone.",
+      "This card invites you to notice and foster relationships in your life that expand what is possible for everyone involved. Remember that reciprocity does not mean giving the exact same thing in equal amounts; it means each person brings something valuable, and the connection leaves both sides stronger, better supported, and able to reach a little farther.",
     ],
     reflectionQuestions: [
       "Where in my life is there ongoing exchange rather than one-sided output?",

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useFonts } from "expo-font";
+import { StatusBar } from "expo-status-bar";
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import Constants from "expo-constants";
 import {
@@ -938,8 +939,12 @@ function OracleApp() {
     const configureAndStartAudio = async () => {
       try {
         await Audio.setAudioModeAsync({
-          staysActiveInBackground: true,
+          // Ambient audio should not keep Android alive as a background audio
+          // app. The existing iOS behavior remains unchanged.
+          staysActiveInBackground: Platform.OS === "ios",
           playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
         });
       } catch (error) {
         // Ignore unsupported platform audio mode errors.
@@ -1202,6 +1207,34 @@ function OracleApp() {
     journalDraft,
     persistJournals,
   ]);
+
+  const closeHistory = useCallback(() => {
+    setSelectedHistoryId(null);
+    setIsHistoryOpen(false);
+  }, []);
+
+  const closeJournalEntries = useCallback(() => {
+    setIsJournalEntriesOpen(false);
+  }, []);
+
+  const closeJournalDetail = useCallback(() => {
+    if (isJournalDetailCardExpanded) {
+      setIsJournalDetailCardExpanded(false);
+      setIsJournalDetailCardFront(true);
+      return;
+    }
+    setSelectedJournalEntryId(null);
+    setIsJournalDetailCardFront(true);
+    setIsJournalEntriesOpen(true);
+  }, [isJournalDetailCardExpanded]);
+
+  const closeSelectedHistory = useCallback(() => {
+    setSelectedHistoryId(null);
+  }, []);
+
+  const closeJournal = useCallback(() => {
+    setIsJournalOpen(false);
+  }, []);
 
   const resetApp = useCallback(() => {
     shuffleAnimRef.current?.stop();
@@ -3444,6 +3477,13 @@ function OracleApp() {
 
   return (
     <View style={styles.root}>
+      {Platform.OS === "android" ? (
+        <StatusBar
+          style="light"
+          backgroundColor={colors.bg}
+          translucent={false}
+        />
+      ) : null}
       <ImageBackground
         source={bg}
         style={[
@@ -4393,17 +4433,19 @@ function OracleApp() {
               </View>
             </Modal>
 
-            <Modal transparent visible={isHistoryOpen} animationType="fade">
+            <Modal
+              transparent
+              visible={isHistoryOpen}
+              animationType="fade"
+              onRequestClose={closeHistory}
+            >
               <View style={styles.modalOverlay}>
                 <View style={[styles.modalCard, styles.journalCard]}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Your History</Text>
                     <ThemedButton
                       label="Close"
-                      onPress={() => {
-                        setSelectedHistoryId(null);
-                        setIsHistoryOpen(false);
-                      }}
+                      onPress={closeHistory}
                       variant="ghost"
                       style={styles.modalCloseButton}
                     />
@@ -4436,6 +4478,7 @@ function OracleApp() {
               transparent
               visible={isJournalEntriesOpen}
               animationType="fade"
+              onRequestClose={closeJournalEntries}
             >
               <View style={styles.modalOverlay}>
                 <View style={styles.modalCard}>
@@ -4443,7 +4486,7 @@ function OracleApp() {
                     <Text style={styles.modalTitle}>Journal Entries</Text>
                     <ThemedButton
                       label="Close"
-                      onPress={() => setIsJournalEntriesOpen(false)}
+                      onPress={closeJournalEntries}
                       variant="ghost"
                       style={styles.modalCloseButton}
                     />
@@ -4470,6 +4513,7 @@ function OracleApp() {
               transparent
               visible={selectedJournalEntryId !== null}
               animationType="fade"
+              onRequestClose={closeJournalDetail}
             >
               <View
                 style={[styles.journalOverlay, styles.journalDetailOverlay]}
@@ -4555,12 +4599,7 @@ function OracleApp() {
                         </View>
                         <ThemedButton
                           label="Close"
-                          onPress={() => {
-                            setSelectedJournalEntryId(null);
-                            setIsJournalDetailCardExpanded(false);
-                            setIsJournalDetailCardFront(true);
-                            setIsJournalEntriesOpen(true);
-                          }}
+                          onPress={closeJournalDetail}
                           variant="secondary"
                           style={[
                             styles.journalCloseButton,
@@ -4573,12 +4612,7 @@ function OracleApp() {
                   ) : (
                     <ThemedButton
                       label="Close"
-                      onPress={() => {
-                        setSelectedJournalEntryId(null);
-                        setIsJournalDetailCardExpanded(false);
-                        setIsJournalDetailCardFront(true);
-                        setIsJournalEntriesOpen(true);
-                      }}
+                      onPress={closeJournalDetail}
                       variant="secondary"
                       style={[
                         styles.journalCloseButton,
@@ -4675,10 +4709,7 @@ function OracleApp() {
                       />
                       <ThemedButton
                         label="Exit"
-                        onPress={() => {
-                          setIsJournalDetailCardExpanded(false);
-                          setIsJournalDetailCardFront(true);
-                        }}
+                        onPress={closeJournalDetail}
                         variant="secondary"
                         style={styles.journalCloseButton}
                         labelStyle={styles.journalCloseLabel}
@@ -4693,6 +4724,7 @@ function OracleApp() {
               transparent
               visible={selectedHistoryId !== null}
               animationType="fade"
+              onRequestClose={closeSelectedHistory}
             >
               <View style={styles.modalOverlay}>
                 <View style={styles.modalCard}>
@@ -4718,7 +4750,7 @@ function OracleApp() {
                   )}
                   <ThemedButton
                     label="Back"
-                    onPress={() => setSelectedHistoryId(null)}
+                    onPress={closeSelectedHistory}
                     variant="ghost"
                     style={styles.modalCloseButton}
                   />
@@ -4726,7 +4758,12 @@ function OracleApp() {
               </View>
             </Modal>
 
-            <Modal transparent visible={isJournalOpen} animationType="fade">
+            <Modal
+              transparent
+              visible={isJournalOpen}
+              animationType="fade"
+              onRequestClose={closeJournal}
+            >
               <KeyboardAvoidingView
                 style={styles.modalKeyboardAvoid}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
