@@ -3111,6 +3111,16 @@ function OracleApp() {
   const selectedJournalCard = selectedJournalEntry
     ? (cardsById.get(selectedJournalEntry.cardId) ?? null)
     : null;
+  const selectedJournalReflectionQuestion = useMemo(() => {
+    const reflectionQuestions = selectedJournalCard?.reflectionQuestions ?? [];
+    const reflectionQuestionIndex = normalizeReflectionQuestionIndex(
+      selectedJournalEntry?.reflectionQuestionIndex,
+      reflectionQuestions.length,
+    );
+    return reflectionQuestionIndex === null
+      ? null
+      : (reflectionQuestions[reflectionQuestionIndex] ?? null);
+  }, [selectedJournalCard, selectedJournalEntry?.reflectionQuestionIndex]);
   const journalDetailLines = useMemo(
     () =>
       buildDetailLines(
@@ -4581,6 +4591,22 @@ function OracleApp() {
                             )}
                           </Pressable>
                         </View>
+                        {selectedJournalReflectionQuestion ? (
+                          <View style={styles.journalQuestionWrap}>
+                            <Text
+                              allowFontScaling={false}
+                              style={styles.journalQuestionTitle}
+                            >
+                              Reflection Question
+                            </Text>
+                            <Text
+                              allowFontScaling={false}
+                              style={styles.journalQuestionText}
+                            >
+                              {selectedJournalReflectionQuestion}
+                            </Text>
+                          </View>
+                        ) : null}
                         <View style={styles.journalReflectionWrap}>
                           <Text style={styles.journalReflectionTitle}>
                             Your Reflection
@@ -5713,6 +5739,28 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  journalQuestionWrap: {
+    width: "94%",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+  },
+  journalQuestionTitle: {
+    color: "rgba(72, 38, 15, 0.88)",
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: spacing.xs,
+    fontFamily: appFontFamily,
+    textAlign: "center",
+    textDecorationLine: "underline",
+  },
+  journalQuestionText: {
+    color: "rgba(72, 38, 15, 0.9)",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: appFontFamily,
+    textAlign: "center",
   },
   journalCardExpandedOverlay: {
     ...StyleSheet.absoluteFillObject,
