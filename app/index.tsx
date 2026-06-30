@@ -10,6 +10,7 @@ import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import {
   Alert,
   Animated,
@@ -153,6 +154,7 @@ const JOURNAL_KEY = "oracle:journals:v1";
 const REFLECTION_QUESTION_CURSORS_KEY =
   "oracle:reflection-question-cursors:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+const PRIVACY_POLICY_URL = "https://privacy.quantumnonsense.com/";
 const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
 const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
 const MUSIC_TRACKS = [
@@ -4961,6 +4963,21 @@ function OracleApp() {
           />
         </Pressable>
       ) : null}
+      <Pressable
+        onPress={() => {
+          void Linking.openURL(PRIVACY_POLICY_URL);
+        }}
+        accessibilityRole="link"
+        accessibilityLabel="Open Privacy Policy"
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.privacyLink,
+          { bottom: insets.bottom + 2 },
+          pressed ? styles.privacyLinkPressed : null,
+        ]}
+      >
+        <Text style={styles.privacyLinkText}>Privacy</Text>
+      </Pressable>
     </View>
   );
 }
@@ -5029,6 +5046,28 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     resizeMode: "contain",
+  },
+  privacyLink: {
+    position: "absolute",
+    left: "50%",
+    width: 64,
+    minHeight: 24,
+    marginLeft: -32,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+  },
+  privacyLinkPressed: {
+    opacity: 0.65,
+  },
+  privacyLinkText: {
+    color: "rgba(251, 250, 255, 0.62)",
+    fontFamily: appFontFamily,
+    fontSize: 10,
+    textDecorationLine: "underline",
+    textShadowColor: "rgba(0, 0, 0, 0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   screen: {
     backgroundColor: "transparent",
