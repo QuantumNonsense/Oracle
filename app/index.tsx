@@ -10,6 +10,7 @@ import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import {
   Alert,
   Animated,
@@ -153,6 +154,7 @@ const JOURNAL_KEY = "oracle:journals:v1";
 const REFLECTION_QUESTION_CURSORS_KEY =
   "oracle:reflection-question-cursors:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+const PRIVACY_POLICY_URL = "https://quantumnonsense.com/mycoracle/privacy";
 const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
 const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
 const MUSIC_TRACKS = [
@@ -3556,6 +3558,19 @@ function OracleApp() {
                 setBannerLayout({ y, height });
               }}
             />
+            <Pressable
+              onPress={() => {
+                void Linking.openURL(PRIVACY_POLICY_URL);
+              }}
+              accessibilityRole="link"
+              accessibilityLabel="Open MycOracle Privacy Policy"
+              style={({ pressed }) => [
+                styles.privacyPolicyLink,
+                pressed ? styles.privacyPolicyLinkPressed : null,
+              ]}
+            >
+              <Text style={styles.privacyPolicyLinkText}>Privacy Policy</Text>
+            </Pressable>
             {!currentCard ? (
               <View
                 onLayout={(event) => {
@@ -5089,6 +5104,26 @@ const styles = StyleSheet.create({
     height: 140,
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
+  },
+  privacyPolicyLink: {
+    alignSelf: "center",
+    minHeight: 32,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  privacyPolicyLinkPressed: {
+    opacity: 0.72,
+  },
+  privacyPolicyLinkText: {
+    color: colors.primary,
+    fontFamily: appFontFamily,
+    fontSize: 14,
+    textDecorationLine: "underline",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   subtitle: {
     color: colors.muted,

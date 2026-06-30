@@ -2,6 +2,14 @@
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "rewrites": [
+    {
+      "source": "/mycoracle/privacy",
+      "destination": "/mycoracle/privacy/index.html"
+    },
+    {
+      "source": "/mycoracle/privacy/",
+      "destination": "/mycoracle/privacy/index.html"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
