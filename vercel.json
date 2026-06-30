@@ -3,11 +3,13 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/mycoracle/privacy",
-      "destination": "/mycoracle/privacy/index.html"
-    },
-    {
-      "source": "/mycoracle/privacy/",
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "privacy.quantumnonsense.com"
+        }
+      ],
       "destination": "/mycoracle/privacy/index.html"
     },
     { "source": "/(.*)", "destination": "/index.html" }
