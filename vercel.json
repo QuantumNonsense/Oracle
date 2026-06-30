@@ -12,6 +12,15 @@
       ],
       "destination": "/mycoracle/privacy/index.html"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "missing": [
+        {
+          "type": "host",
+          "value": "privacy.quantumnonsense.com"
+        }
+      ],
+      "destination": "/index.html"
+    }
   ]
 }
