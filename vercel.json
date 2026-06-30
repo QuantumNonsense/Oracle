@@ -2,25 +2,6 @@
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "rewrites": [
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "privacy.quantumnonsense.com"
-        }
-      ],
-      "destination": "/mycoracle/privacy/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "missing": [
-        {
-          "type": "host",
-          "value": "privacy.quantumnonsense.com"
-        }
-      ],
-      "destination": "/index.html"
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
