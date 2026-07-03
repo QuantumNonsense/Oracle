@@ -460,7 +460,7 @@ function OracleApp() {
   const homeImage = require("../assets/Home.png");
   const flipImage = require("../assets/Flip.png");
   const closeImage = require("../assets/Close.png");
-  const journalStoneImage = require("../assets/Journal.png");
+  const journalStoneImage = require("../assets/journal-stone.png");
   const scrollImage = require("../assets/Scroll.png");
   const musicToggleIcon = require("../assets/music.png");
   const noMusicToggleIcon = require("../assets/nomusic.png");
