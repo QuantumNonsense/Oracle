@@ -385,8 +385,88 @@ export const cards: Card[] = [
     ],
     type: "card",
   },
-  ...Array.from({ length: 16 }, (_, index) =>
-    createPlaceholderCard(index + 21),
+  {
+    id: "colonization",
+    title: "Colonization",
+    image: cardImages[20],
+    detailImage: detailBackground,
+    description: [
+      "Colonization is the process by which a fungus gradually spreads through a material, gathering nutrients and weaving itself into the space it occupies. It does not happen all at once. Growth deepens through steady expansion until what began as a small presence becomes fully established.",
+      "This card reminds you that lasting influence comes from showing up again and again. What you return to consistently begins to shape both you and the space around you. Give your efforts time to take hold, and trust that sustained presence can transform something from tentative to deeply rooted.",
+    ],
+    reflectionQuestions: [
+      "What in my life is moving from introduction into sustained presence?",
+      "Is this environment stable enough to support long-term establishment?",
+      "What would consistent engagement look like here?",
+    ],
+    type: "card",
+  },
+  {
+    id: "fairy-rings",
+    title: "Fairy Rings",
+    image: cardImages[21],
+    detailImage: detailBackground,
+    description: [
+      "Fairy rings form as an underground fungal colony grows outward from a central point. When conditions are right, mushrooms appear along the active outer edge, creating a circle that reveals years of hidden expansion beneath the soil. People once imagined these rings as places where fairies gathered and danced, although the real magic is fungal.",
+      "This card reminds you that it can take time and distance to see the patterns your growth is creating. What began in one small place may already be spreading outward, shaping more than you realize. Step back, notice what has formed around you, and trust that steady growth leaves behind its own kind of magic.",
+    ],
+    reflectionQuestions: [
+      "Where in my life do I see patterns forming from earlier actions?",
+      "Is the center of this system still active, or has growth moved to the edges?",
+      "What might happen if I focus attention on the advancing edge rather than the origin?",
+    ],
+    type: "card",
+  },
+  {
+    id: "fungal-bloom",
+    title: "Fungal Bloom",
+    image: cardImages[22],
+    detailImage: detailBackground,
+    description: [
+      "A fungal bloom occurs when many mushrooms appear across a landscape within a short period of time. Rainfall, temperature changes, and seasonal shifts can cause a robust flush seemingly overnight, but the mycelium beneath the surface has often been growing and gathering resources long before anything becomes visible.",
+      "This card reminds you that abundance can emerge suddenly when conditions align. Progress may be quietly accumulating beyond what you can see. Keep nurturing what is growing beneath the surface, and trust that the right support and timing can transform quiet preparation into a beautiful burst of possibility when you least expect it.",
+    ],
+    reflectionQuestions: [
+      "Where have I been investing effort without immediate visibility?",
+      "Am I mistaking quiet accumulation for absence?",
+      "How can I remain steady as conditions approach alignment?",
+    ],
+    type: "card",
+  },
+  {
+    id: "volva",
+    title: "Volva",
+    image: cardImages[23],
+    detailImage: detailBackground,
+    description: [
+      "The volva is a cup-like structure at the base of certain mushrooms and an important feature for identification. It is what remains of the universal veil that once enclosed the entire young mushroom. As the mushroom grows and breaks free, the volva stays behind as a visible trace of where it began.",
+      "This card invites you to remember that growth does not erase your past. Old protections, limitations, and experiences may no longer contain you, but they can still be part of your foundation. Honor what helped shape you, then keep rising beyond it.",
+    ],
+    reflectionQuestions: [
+      "What early conditions or protections make my current growth possible?",
+      "Am I interpreting my beginnings as limitation rather than formation?",
+      "What shifts if I acknowledge my past as part of my structure?",
+    ],
+    type: "card",
+  },
+  {
+    id: "stipe",
+    title: "Stipe",
+    image: cardImages[24],
+    detailImage: detailBackground,
+    description: [
+      "The stipe is the stem-like structure that supports the cap of many mushrooms. By lifting the gills or pores above the ground, it improves airflow and helps spores travel farther. The stipe does not produce the spores, but it elevates them to a place where they can be released.",
+      "This card invites you to notice what quietly supports and elevates your efforts. Not every contribution creates the visible result. Some provide the stability, position, or encouragement that allows something else to flourish. Value the structures that help you stand taller and express yourself more freely.",
+    ],
+    reflectionQuestions: [
+      "What in my life is currently being elevated or brought into view?",
+      "Am I undervaluing the role of support because it is not the visible outcome?",
+      "What would strengthen the structures that allow my work to reach farther?",
+    ],
+    type: "card",
+  },
+  ...Array.from({ length: 11 }, (_, index) =>
+    createPlaceholderCard(index + 26),
   ),
 ];
 
