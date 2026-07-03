@@ -5100,9 +5100,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   banner: {
-    width: "100%",
-    maxWidth: 640,
-    height: 140,
+    width: "120%",
+    maxWidth: 768,
+    height: 168,
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
   },
