@@ -13,6 +13,7 @@ import {
 
 import { cardBackImage, cards } from "../decks/defaultDeck";
 import { CARD_HEIGHT_RATIO } from "../lib/cardLayout";
+import ImageButton from "./ImageButton";
 import {
   getCardDrawBreakdown,
   getCardDrawCounts,
@@ -375,14 +376,12 @@ const CardBreakdownModal = ({
                 {total.toLocaleString()} {total === 1 ? "draw" : "draws"}
               </Text>
             </View>
-            <Pressable
+            <ImageButton
               accessibilityLabel="Close card details"
-              accessibilityRole="button"
               onPress={onClose}
+              source={require("../../assets/Close.png")}
               style={styles.closeButton}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
+            />
           </View>
 
           <View style={styles.breakdownContent}>
@@ -1037,15 +1036,8 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     alignSelf: "flex-start",
-    borderRadius: 8,
-    backgroundColor: "rgba(65, 45, 24, 0.12)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  closeButtonText: {
-    color: "#3b2917",
-    fontSize: 13,
-    fontWeight: "900",
+    width: 78,
+    height: 56,
   },
   breakdownContent: {
     borderRadius: 8,

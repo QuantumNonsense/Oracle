@@ -58,6 +58,7 @@ import {
 } from "../src/lib/journalTracking";
 import { storage } from "../src/lib/storage";
 import CardFlip from "../src/components/CardFlip";
+import ImageButton from "../src/components/ImageButton";
 import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
@@ -456,6 +457,10 @@ function OracleApp() {
   });
   const bg = require("../assets/backgrounds/mushroom-field.png");
   const shuffleImage = require("../assets/Shuffle.png");
+  const homeImage = require("../assets/Home.png");
+  const flipImage = require("../assets/Flip.png");
+  const closeImage = require("../assets/Close.png");
+  const journalStoneImage = require("../assets/Journal.png");
   const scrollImage = require("../assets/Scroll.png");
   const musicToggleIcon = require("../assets/music.png");
   const noMusicToggleIcon = require("../assets/nomusic.png");
@@ -3673,12 +3678,11 @@ function OracleApp() {
                 </View>
                 {!isTripleExpandedOpen ? (
                   <View style={styles.triplePyramidMenuRow}>
-                    <ThemedButton
-                      label="Home"
+                    <ImageButton
+                      accessibilityLabel="Home"
+                      source={homeImage}
                       onPress={resetApp}
-                      variant="secondary"
-                      style={styles.triplePyramidMenuButton}
-                      labelStyle={styles.tripleExpandedActionLabel}
+                      style={styles.triplePyramidMenuImageButton}
                     />
                   </View>
                 ) : null}
@@ -3713,60 +3717,35 @@ function OracleApp() {
                 ) : null}
                 {!isDetailMode ? (
                   <View style={[styles.cardActions, styles.cardPromptActions]}>
-                    <ThemedButton
-                      label="Flip"
+                    <ImageButton
+                      accessibilityLabel="Flip card"
+                      source={flipImage}
                       onPress={handleCardTap}
-                      variant="secondary"
                       disabled={isCardInteractionLocked || isAutoFlipPending}
-                      style={[
-                        styles.cardActionButton,
-                        styles.cardPromptFlipButton,
-                      ]}
-                      labelStyle={styles.cardActionLabel}
+                      style={styles.cardPromptFlipImageButton}
                     />
                   </View>
                 ) : null}
                 {isDetailMode ? (
                   <View style={styles.cardActions}>
-                    <ThemedButton
-                      label="Home"
+                    <ImageButton
+                      accessibilityLabel="Home"
+                      source={homeImage}
                       onPress={resetApp}
-                      variant="ghost"
-                      style={[
-                        styles.cardActionButton,
-                        styles.cardDetailActionButton,
-                      ]}
-                      labelStyle={[
-                        styles.cardActionLabel,
-                        styles.cardDetailActionLabel,
-                      ]}
+                      style={styles.cardDetailImageButton}
                     />
-                    <ThemedButton
-                      label="Flip"
+                    <ImageButton
+                      accessibilityLabel="Flip card"
+                      source={flipImage}
                       onPress={handleCardTap}
-                      variant="secondary"
                       disabled={isCardInteractionLocked}
-                      style={[
-                        styles.cardActionButton,
-                        styles.cardDetailActionButton,
-                      ]}
-                      labelStyle={[
-                        styles.cardActionLabel,
-                        styles.cardDetailActionLabel,
-                      ]}
+                      style={styles.cardDetailFlipImageButton}
                     />
-                    <ThemedButton
-                      label="Journal"
+                    <ImageButton
+                      accessibilityLabel="Open journal"
+                      source={journalStoneImage}
                       onPress={openJournal}
-                      variant="secondary"
-                      style={[
-                        styles.cardActionButton,
-                        styles.cardDetailActionButton,
-                      ]}
-                      labelStyle={[
-                        styles.cardActionLabel,
-                        styles.cardDetailActionLabel,
-                      ]}
+                      style={styles.cardDetailJournalImageButton}
                     />
                   </View>
                 ) : null}
@@ -4405,23 +4384,21 @@ function OracleApp() {
                           style={styles.tripleExpandedActionButton}
                           labelStyle={styles.tripleExpandedActionLabel}
                         />
-                        <ThemedButton
-                          label="Flip"
+                        <ImageButton
+                          accessibilityLabel="Flip card"
+                          source={flipImage}
                           onPress={
                             isExpandedTripleFront
                               ? handleExpandedTripleFlip
                               : handleExpandedTripleTitlePress
                           }
-                          variant="secondary"
-                          style={styles.tripleExpandedActionButton}
-                          labelStyle={styles.tripleExpandedActionLabel}
+                          style={styles.tripleExpandedFlipImageButton}
                         />
-                        <ThemedButton
-                          label="Close"
+                        <ImageButton
+                          accessibilityLabel="Close card"
+                          source={closeImage}
                           onPress={closeExpandedTripleCard}
-                          variant="secondary"
-                          style={styles.tripleExpandedActionButton}
-                          labelStyle={styles.tripleExpandedActionLabel}
+                          style={styles.tripleExpandedImageButton}
                         />
                       </View>
                     </>
@@ -4429,15 +4406,15 @@ function OracleApp() {
                     <View
                       style={[
                         styles.tripleExpandedActionRow,
+                        styles.tripleExpandedCloseRow,
                         { marginTop: tripleExpandedActionsOffset },
                       ]}
                     >
-                      <ThemedButton
-                        label="Close"
+                      <ImageButton
+                        accessibilityLabel="Close card"
+                        source={closeImage}
                         onPress={closeExpandedTripleCard}
-                        variant="secondary"
-                        style={styles.tripleExpandedActionButton}
-                        labelStyle={styles.tripleExpandedActionLabel}
+                        style={styles.tripleExpandedImageButton}
                       />
                     </View>
                   )}
@@ -4455,11 +4432,11 @@ function OracleApp() {
                 <View style={[styles.modalCard, styles.journalCard]}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Your History</Text>
-                    <ThemedButton
-                      label="Close"
+                    <ImageButton
+                      accessibilityLabel="Close history"
+                      source={closeImage}
                       onPress={closeHistory}
-                      variant="ghost"
-                      style={styles.modalCloseButton}
+                      style={styles.modalCloseImageButton}
                     />
                   </View>
                   {formattedHistory.length === 0 ? (
@@ -4496,11 +4473,11 @@ function OracleApp() {
                 <View style={styles.modalCard}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Journal Entries</Text>
-                    <ThemedButton
-                      label="Close"
+                    <ImageButton
+                      accessibilityLabel="Close journal entries"
+                      source={closeImage}
                       onPress={closeJournalEntries}
-                      variant="ghost"
-                      style={styles.modalCloseButton}
+                      style={styles.modalCloseImageButton}
                     />
                   </View>
                   {journalEntryList.length === 0 ? (
@@ -4625,28 +4602,26 @@ function OracleApp() {
                             </Text>
                           </ScrollView>
                         </View>
-                        <ThemedButton
-                          label="Close"
+                        <ImageButton
+                          accessibilityLabel="Close journal entry"
+                          source={closeImage}
                           onPress={closeJournalDetail}
-                          variant="secondary"
                           style={[
-                            styles.journalCloseButton,
+                            styles.journalCloseImageButton,
                             styles.journalDetailCloseButtonOffset,
                           ]}
-                          labelStyle={styles.journalCloseLabel}
                         />
                       </View>
                     </ImageBackground>
                   ) : (
-                    <ThemedButton
-                      label="Close"
+                    <ImageButton
+                      accessibilityLabel="Close journal entry"
+                      source={closeImage}
                       onPress={closeJournalDetail}
-                      variant="secondary"
                       style={[
-                        styles.journalCloseButton,
+                        styles.journalCloseImageButton,
                         styles.journalDetailCloseButtonOffset,
                       ]}
-                      labelStyle={styles.journalCloseLabel}
                     />
                   )}
                 </View>
@@ -5053,6 +5028,7 @@ const styles = StyleSheet.create({
     width: 64,
     minHeight: 24,
     marginLeft: -32,
+    transform: [{ translateY: 5 }],
     alignItems: "center",
     justifyContent: "center",
     zIndex: 50,
@@ -5061,7 +5037,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   privacyLinkText: {
-    color: "rgba(251, 250, 255, 0.62)",
+    color: "#EFDECD",
     fontFamily: appFontFamily,
     fontSize: 10,
     textDecorationLine: "underline",
@@ -5082,6 +5058,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
+    transform: [{ translateY: -30 }],
   },
   column: {
     position: "relative",
@@ -5213,16 +5190,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.xs,
   },
-  triplePyramidMenuButton: {
-    width: "46%",
-    maxWidth: 170,
-    minHeight: 40,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 999,
-    backgroundColor: "#f2c8a7",
-    borderColor: "#d4a47d",
-    borderWidth: 1,
+  triplePyramidMenuImageButton: {
+    width: 140,
+    height: 92,
   },
   tripleExpandedOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -5288,6 +5258,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
   },
+  tripleExpandedCloseRow: {
+    justifyContent: "center",
+  },
   tripleExpandedActionButton: {
     flex: 1,
     minHeight: 42,
@@ -5297,6 +5270,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#f2c8a7",
     borderColor: "#d4a47d",
     borderWidth: 1,
+  },
+  tripleExpandedImageButton: {
+    width: 96,
+    height: 68,
+  },
+  tripleExpandedFlipImageButton: {
+    width: 77,
+    height: 54,
   },
   tripleExpandedActionLabel: {
     color: "#2b0a00",
@@ -5334,19 +5315,24 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     fontSize: 19.8,
   },
-  cardDetailActionButton: {
-    paddingHorizontal: spacing.sm,
+  cardDetailImageButton: {
+    width: 96,
+    height: 68,
   },
-  cardDetailActionLabel: {
-    fontSize: 18,
+  cardDetailFlipImageButton: {
+    width: 77,
+    height: 54,
+  },
+  cardDetailJournalImageButton: {
+    width: 96,
+    height: 54,
   },
   cardPromptActions: {
     justifyContent: "center",
   },
-  cardPromptFlipButton: {
-    flex: 0,
-    minWidth: 156,
-    paddingHorizontal: spacing.xl,
+  cardPromptFlipImageButton: {
+    width: 125,
+    height: 85,
   },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
@@ -5545,8 +5531,8 @@ const styles = StyleSheet.create({
   },
   shuffleButton: {
     alignSelf: "center",
-    width: Math.round(180 * 1.75 * 0.85),
-    height: Math.round(66 * 1.75 * 0.85),
+    width: Math.round(180 * 1.75 * 0.85 * 0.55),
+    height: Math.round((180 * 1.75 * 0.85 * 0.55 * 502) / 757),
     marginTop: -50,
     alignItems: "center",
     justifyContent: "center",
@@ -5944,6 +5930,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
+  modalCloseImageButton: {
+    width: 78,
+    height: 56,
+  },
   journalCloseButton: {
     minHeight: 44,
     paddingHorizontal: spacing.lg,
@@ -5955,6 +5945,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  journalCloseImageButton: {
+    width: 118,
+    height: 84,
+    alignSelf: "center",
   },
   journalDetailCloseButtonOffset: {
     marginTop: "auto",
