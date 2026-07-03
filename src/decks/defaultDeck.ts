@@ -353,8 +353,40 @@ export const cards: Card[] = [
     ],
     type: "card",
   },
-  ...Array.from({ length: 18 }, (_, index) =>
-    createPlaceholderCard(index + 19),
+  {
+    id: "annulus",
+    title: "Annulus",
+    image: cardImages[18],
+    detailImage: detailBackground,
+    description: [
+      "The annulus is a skirt-like or collar-like ring that encircles the upper stem of some mushrooms just below the cap. It forms when the partial veil tears as the mushroom opens, leaving behind a visible mark of its transition from protection into exposure.",
+      "This card invites you to recognize how far you have already come. A threshold once crossed can leave its mark, not as something holding you to the past, but as evidence of growth. Let it remind you how hard you worked to get here, and that you no longer need the protection that once felt vital.",
+    ],
+    reflectionQuestions: [
+      "What transitions have I already moved through?",
+      "What visible or structural traces have those changes left behind?",
+      "Am I relating to something as if it is still unresolved when it has already shifted?",
+    ],
+    type: "card",
+  },
+  {
+    id: "bioluminescence",
+    title: "Bioluminescence",
+    image: cardImages[19],
+    detailImage: detailBackground,
+    description: [
+      "Bioluminescence is light created by a living organism through a chemical reaction. Some fungi produce a soft green glow from within, often lighting up decaying wood on dark, humid nights. Scientists are still studying why they glow, but the light may attract insects that help carry their spores farther.",
+      "This card invites you to notice what becomes clearer when the world grows quiet. A gift, feeling, or direction that was easy to overlook may now be gently glowing for your attention. Move closer, stay curious, and see what it is trying to show you.",
+    ],
+    reflectionQuestions: [
+      "Has something around me grown quieter or darker, allowing subtle details to emerge?",
+      "Am I overlooking signals because I expect them to be louder or brighter?",
+      "How might I pay attention to the faint but persistent indicators around me?",
+    ],
+    type: "card",
+  },
+  ...Array.from({ length: 16 }, (_, index) =>
+    createPlaceholderCard(index + 21),
   ),
 ];
 
