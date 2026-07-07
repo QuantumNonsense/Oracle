@@ -108,6 +108,8 @@ const THREE_PILE_CUT_TIMING = {
 const SHUFFLE_SHAKE_STEPS = 6;
 const SHUFFLE_SWIRL_STEPS = 8;
 const SHUFFLE_START_PROGRESS_ON_OPEN = 0.4;
+const STONE_LABEL_TEXT_COLOR = "#C8BBA2";
+const STONE_LABEL_SHADOW_COLOR = "rgba(0, 0, 0, 0.72)";
 const CLASSIC_SHUFFLE_TOTAL_DURATION =
   SHUFFLE_TIMING.COLLAPSE_DURATION +
   SHUFFLE_TIMING.HOLD_BEFORE_SHAKE +
@@ -208,6 +210,10 @@ const appFontFamily = Platform.select({
 });
 const detailFontFamily = appFontFamily;
 const detailFontFamilyBold = appFontFamily;
+const customFontHeavyWeight =
+  Platform.OS === "android" ? undefined : ("800" as const);
+const detailTitleFontStyle =
+  Platform.OS === "android" ? undefined : ("italic" as const);
 
 const formatHistoryDate = (value: string) => {
   try {
@@ -335,6 +341,25 @@ const getTripleTransitionBackStyle = (flip: Animated.Value) => {
     };
   }
 
+  if (Platform.OS === "android") {
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 0.43, 0.5, 1],
+        outputRange: [1, 1, 0, 0],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 0.43, 0.5, 1],
+            outputRange: [1, 0.14, 0.075, 0.075],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
+  }
+
   return {
     transform: [
       { perspective: 1000 },
@@ -350,6 +375,25 @@ const getTripleTransitionBackStyle = (flip: Animated.Value) => {
 
 const getTripleTransitionFrontStyle = (flip: Animated.Value) => {
   if (Platform.OS === "ios") {
+    return {
+      opacity: flip.interpolate({
+        inputRange: [0, 0.5, 0.57, 1],
+        outputRange: [0, 0, 1, 1],
+        extrapolate: "clamp",
+      }),
+      transform: [
+        {
+          scaleX: flip.interpolate({
+            inputRange: [0, 0.5, 0.57, 1],
+            outputRange: [0.075, 0.075, 0.14, 1],
+            extrapolate: "clamp",
+          }),
+        },
+      ],
+    };
+  }
+
+  if (Platform.OS === "android") {
     return {
       opacity: flip.interpolate({
         inputRange: [0, 0.5, 0.57, 1],
@@ -816,6 +860,7 @@ function OracleApp() {
           style={styles.detailScroll}
           contentContainerStyle={styles.detailScrollContent}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={Platform.OS === "android"}
         >
           {bodyLines.map((line, index) => {
             const lineIndex = index + 1;
@@ -2926,6 +2971,8 @@ function OracleApp() {
       : false;
   const showIosDetachedDetailOverlay =
     Platform.OS === "ios" && isDetailMode && isIosDetailOverlayVisible;
+  const isAndroidDetailScrollActive =
+    Platform.OS === "android" && isDetailMode && isFront;
   const canFavorite = currentCard?.type === "card";
   const formattedHistory = useMemo(
     () =>
@@ -3698,7 +3745,11 @@ function OracleApp() {
                   isFront={isFront}
                   front={flipPair?.front ?? frontNode}
                   back={flipPair?.back ?? backNode}
-                  disabled={isCardInteractionLocked || isAutoFlipPending}
+                  disabled={
+                    isCardInteractionLocked ||
+                    isAutoFlipPending ||
+                    isAndroidDetailScrollActive
+                  }
                   style={[
                     styles.cardArea,
                     {
@@ -5117,11 +5168,11 @@ const styles = StyleSheet.create({
   tapHint: {
     fontSize: Math.round((typography.subtitle + 2) * 1.3),
     fontFamily: appFontFamily,
-    fontWeight: "800",
-    color: "#2b0a00",
+    fontWeight: customFontHeavyWeight,
+    color: STONE_LABEL_TEXT_COLOR,
     textAlign: "center",
     letterSpacing: 0.6,
-    textShadowColor: "rgba(255, 255, 255, 0.5)",
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -5138,10 +5189,10 @@ const styles = StyleSheet.create({
     opacity: 0,
   },
   tapHintCoreConfirm: {
-    color: "#2b0a00",
-    textShadowColor: "transparent",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 0,
+    color: STONE_LABEL_TEXT_COLOR,
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   triplePyramidWrap: {
     position: "relative",
@@ -5169,8 +5220,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   tripleHintText: {
-    color: "#2b0a00",
-    textShadowColor: "rgba(80, 37, 14, 0.28)",
+    color: STONE_LABEL_TEXT_COLOR,
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
     backgroundColor: "transparent",
@@ -5337,13 +5388,13 @@ const styles = StyleSheet.create({
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
     fontFamily: appFontFamily,
-    color: "#2b0a00",
+    color: STONE_LABEL_TEXT_COLOR,
     textAlign: "center",
     letterSpacing: 0.4,
-    textShadowColor: "rgba(255, 255, 255, 0.58)",
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 6,
-    fontWeight: "800",
+    fontWeight: customFontHeavyWeight,
   },
   readMoreHintSmall: {
     fontSize: Math.round(typography.subtitle * 3 * 0.7),
@@ -5406,7 +5457,7 @@ const styles = StyleSheet.create({
     fontFamily: detailFontFamilyBold,
     color: "#2b0a00",
     fontSize: Math.round(22 * 1.3),
-    fontStyle: "italic",
+    fontStyle: detailTitleFontStyle,
     textDecorationLine: "underline",
     marginBottom: spacing.xs,
     textAlign: "center",
@@ -5481,7 +5532,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   tripleCardTransitionFrontFace: {
-    ...(Platform.OS === "ios" ? {} : { transform: [{ rotateY: "180deg" }] }),
+    ...(Platform.OS !== "ios" && Platform.OS !== "android"
+      ? { transform: [{ rotateY: "180deg" }] }
+      : {}),
     zIndex: 2,
   },
   tripleCardTransitionImage: {
