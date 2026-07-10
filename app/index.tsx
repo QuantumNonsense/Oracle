@@ -505,6 +505,7 @@ function OracleApp() {
   const flipImage = require("../assets/Flip.png");
   const closeImage = require("../assets/Close.png");
   const journalStoneImage = require("../assets/journal-stone.png");
+  const parchmentImage = require("../assets/Parchment.png");
   const scrollImage = require("../assets/Scroll.png");
   const musicToggleIcon = require("../assets/music.png");
   const noMusicToggleIcon = require("../assets/nomusic.png");
@@ -3396,6 +3397,16 @@ function OracleApp() {
     singleCardTransitionSlot,
   ]);
   const isTripleExpandedOpen = expandedTripleCardIndex !== null;
+  const isHomeScreen =
+    !currentCard &&
+    !showTriplePyramid &&
+    !isTripleCardTransitioning &&
+    !isTripleExpandedOpen &&
+    !isHistoryOpen &&
+    selectedHistoryId === null &&
+    !isJournalEntriesOpen &&
+    selectedJournalEntryId === null &&
+    !isJournalOpen;
   const expandedTripleCard = isTripleExpandedOpen
     ? (tripleCards[expandedTripleCardIndex] ?? null)
     : null;
@@ -3508,29 +3519,35 @@ function OracleApp() {
     const title = card?.title ?? "Card";
     return (
       <Pressable
-        style={styles.journalEntry}
+        style={styles.journalEntryPressable}
         onPress={() => {
           setSelectedJournalEntryId(item.id);
           setIsJournalEntriesOpen(false);
         }}
         accessibilityLabel={`Open journal entry for ${title}`}
       >
-        <View style={styles.journalEntryThumb}>
-          {card ? (
-            <Image source={card.image} style={styles.journalEntryThumbImage} />
-          ) : (
-            <View style={styles.thumbnailFallback} />
-          )}
-        </View>
-        <View style={styles.journalEntryContent}>
-          <Text style={styles.journalEntryTitle}>{title}</Text>
-          <Text style={styles.journalEntryDate}>
-            {formatHistoryDate(item.createdAt)}
-          </Text>
-          <Text style={styles.journalEntryBody} numberOfLines={2}>
-            {item.entry}
-          </Text>
-        </View>
+        <ImageBackground
+          source={parchmentImage}
+          style={styles.journalEntry}
+          imageStyle={styles.journalEntryParchment}
+        >
+          <View style={styles.journalEntryThumb}>
+            {card ? (
+              <Image source={card.image} style={styles.journalEntryThumbImage} />
+            ) : (
+              <View style={styles.thumbnailFallback} />
+            )}
+          </View>
+          <View style={styles.journalEntryContent}>
+            <Text style={styles.journalEntryTitle}>{title}</Text>
+            <Text style={styles.journalEntryDate}>
+              {formatHistoryDate(item.createdAt)}
+            </Text>
+            <Text style={styles.journalEntryBody} numberOfLines={2}>
+              {item.entry}
+            </Text>
+          </View>
+        </ImageBackground>
       </Pressable>
     );
   }, []);
@@ -3610,7 +3627,7 @@ function OracleApp() {
                 setBannerLayout({ y, height });
               }}
             />
-            {!currentCard ? (
+            {!currentCard && !isJournalEntriesOpen ? (
               <View
                 onLayout={(event) => {
                   const { y, height } = event.nativeEvent.layout;
@@ -3816,7 +3833,7 @@ function OracleApp() {
                   ? null
                   : null}
               </View>
-            ) : (
+            ) : !isJournalEntriesOpen && selectedJournalEntryId === null ? (
               <>
                 <View
                   onLayout={(event) => {
@@ -4186,7 +4203,7 @@ function OracleApp() {
                   })}
                 </View>
               </>
-            )}
+            ) : null}
             {tripleCardTransition && tripleCardTransitionStyles ? (
               <Animated.View
                 pointerEvents="none"
@@ -4287,6 +4304,7 @@ function OracleApp() {
               ]}
             >
               {!currentCard &&
+              !isJournalEntriesOpen &&
               !isConfirmOpen &&
               !isSingleCardTransitioning &&
               !isTripleCardTransitioning &&
@@ -4520,16 +4538,12 @@ function OracleApp() {
               animationType="fade"
               onRequestClose={closeJournalEntries}
             >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalCard}>
+              <View style={[styles.modalOverlay, styles.journalEntriesOverlay]}>
+                <View style={[styles.modalCard, styles.journalEntriesCard]}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Journal Entries</Text>
-                    <ImageButton
-                      accessibilityLabel="Close journal entries"
-                      source={closeImage}
-                      onPress={closeJournalEntries}
-                      style={styles.modalCloseImageButton}
-                    />
+                    <Text style={[styles.modalTitle, styles.journalEntriesTitle]}>
+                      Journal Entries
+                    </Text>
                   </View>
                   {journalEntryList.length === 0 ? (
                     <Text style={styles.modalEmpty}>
@@ -4545,6 +4559,12 @@ function OracleApp() {
                       contentContainerStyle={styles.journalList}
                     />
                   )}
+                  <ImageButton
+                    accessibilityLabel="Close journal entries"
+                    source={closeImage}
+                    onPress={closeJournalEntries}
+                    style={styles.journalEntriesCloseButton}
+                  />
                 </View>
               </View>
             </Modal>
@@ -4653,27 +4673,37 @@ function OracleApp() {
                             </Text>
                           </ScrollView>
                         </View>
-                        <ImageButton
-                          accessibilityLabel="Close journal entry"
-                          source={closeImage}
-                          onPress={closeJournalDetail}
+                        <View
                           style={[
-                            styles.journalCloseImageButton,
-                            styles.journalDetailCloseButtonOffset,
+                            styles.journalActions,
+                            styles.journalDetailActions,
                           ]}
-                        />
+                        >
+                          <ThemedButton
+                            label="Close"
+                            onPress={closeJournalDetail}
+                            variant="secondary"
+                            style={styles.cardActionButton}
+                            labelStyle={styles.cardActionLabel}
+                          />
+                        </View>
                       </View>
                     </ImageBackground>
                   ) : (
-                    <ImageButton
-                      accessibilityLabel="Close journal entry"
-                      source={closeImage}
-                      onPress={closeJournalDetail}
+                    <View
                       style={[
-                        styles.journalCloseImageButton,
-                        styles.journalDetailCloseButtonOffset,
+                        styles.journalActions,
+                        styles.journalDetailActions,
                       ]}
-                    />
+                    >
+                      <ThemedButton
+                        label="Close"
+                        onPress={closeJournalDetail}
+                        variant="secondary"
+                        style={styles.cardActionButton}
+                        labelStyle={styles.cardActionLabel}
+                      />
+                    </View>
                   )}
                 </View>
                 {isJournalDetailCardExpanded ? (
@@ -4923,24 +4953,26 @@ function OracleApp() {
           </View>
         </View>
       </ScrollView>
-      <Pressable
-        onPress={toggleAudio}
-        accessibilityRole="button"
-        accessibilityLabel={isAudioEnabled ? "Disable sound" : "Enable sound"}
-        style={({ pressed }) => [
-          styles.audioToggle,
-          {
-            left: spacing.md + insets.left + 20,
-            bottom: spacing.xs + insets.bottom + 10,
-          },
-          pressed ? styles.audioTogglePressed : null,
-        ]}
-      >
-        <Image
-          source={isAudioEnabled ? noMusicToggleIcon : musicToggleIcon}
-          style={styles.audioToggleIcon}
-        />
-      </Pressable>
+      {!currentCard ? (
+        <Pressable
+          onPress={toggleAudio}
+          accessibilityRole="button"
+          accessibilityLabel={isAudioEnabled ? "Disable sound" : "Enable sound"}
+          style={({ pressed }) => [
+            styles.audioToggle,
+            {
+              left: spacing.md + insets.left + 20,
+              bottom: spacing.xs + insets.bottom + 10,
+            },
+            pressed ? styles.audioTogglePressed : null,
+          ]}
+        >
+          <Image
+            source={isAudioEnabled ? noMusicToggleIcon : musicToggleIcon}
+            style={styles.audioToggleIcon}
+          />
+        </Pressable>
+      ) : null}
       {!currentCard && !isTripleCardTransitioning ? (
         <Pressable
           onPress={() => setIsJournalEntriesOpen(true)}
@@ -4989,21 +5021,23 @@ function OracleApp() {
           />
         </Pressable>
       ) : null}
-      <Pressable
-        onPress={() => {
-          void Linking.openURL(PRIVACY_POLICY_URL);
-        }}
-        accessibilityRole="link"
-        accessibilityLabel="Open Privacy Policy"
-        hitSlop={8}
-        style={({ pressed }) => [
-          styles.privacyLink,
-          { bottom: insets.bottom + 2 },
-          pressed ? styles.privacyLinkPressed : null,
-        ]}
-      >
-        <Text style={styles.privacyLinkText}>Privacy</Text>
-      </Pressable>
+      {isHomeScreen ? (
+        <Pressable
+          onPress={() => {
+            void Linking.openURL(PRIVACY_POLICY_URL);
+          }}
+          accessibilityRole="link"
+          accessibilityLabel="Open Privacy Policy"
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.privacyLink,
+            { bottom: insets.bottom + 2 },
+            pressed ? styles.privacyLinkPressed : null,
+          ]}
+        >
+          <Text style={styles.privacyLinkText}>Privacy</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -5079,7 +5113,7 @@ const styles = StyleSheet.create({
     width: 64,
     minHeight: 24,
     marginLeft: -32,
-    transform: [{ translateY: 5 }],
+    transform: [{ translateY: 10 }],
     alignItems: "center",
     justifyContent: "center",
     zIndex: 50,
@@ -5088,7 +5122,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   privacyLinkText: {
-    color: "#EFDECD",
+    color: STONE_LABEL_TEXT_COLOR,
     fontFamily: appFontFamily,
     fontSize: 10,
     textDecorationLine: "underline",
@@ -5242,8 +5276,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   triplePyramidMenuImageButton: {
-    width: 140,
-    height: 92,
+    width: Math.round(140 * 0.75 * 1.1),
+    height: Math.round(92 * 0.75 * 1.1),
   },
   tripleExpandedOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -5367,8 +5401,8 @@ const styles = StyleSheet.create({
     fontSize: 19.8,
   },
   cardDetailImageButton: {
-    width: 96,
-    height: 68,
+    width: Math.round(96 * 0.75 * 1.1),
+    height: Math.round(68 * 0.75 * 1.1),
   },
   cardDetailFlipImageButton: {
     width: 77,
@@ -5382,8 +5416,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardPromptFlipImageButton: {
-    width: 125,
-    height: 85,
+    width: Math.round(125 * 0.75),
+    height: Math.round(85 * 0.75),
   },
   readMoreHint: {
     fontSize: Math.round(typography.subtitle * 3),
@@ -5584,8 +5618,8 @@ const styles = StyleSheet.create({
   },
   shuffleButton: {
     alignSelf: "center",
-    width: Math.round(180 * 1.75 * 0.85 * 0.55),
-    height: Math.round((180 * 1.75 * 0.85 * 0.55 * 502) / 757),
+    width: Math.round(180 * 1.75 * 0.85 * 0.55 * 0.75),
+    height: Math.round((180 * 1.75 * 0.85 * 0.55 * 0.75 * 502) / 757),
     marginTop: -50,
     alignItems: "center",
     justifyContent: "center",
@@ -5621,6 +5655,9 @@ const styles = StyleSheet.create({
   journalComposeOverlay: {
     paddingHorizontal: 0,
   },
+  journalEntriesOverlay: {
+    backgroundColor: "transparent",
+  },
   modalCard: {
     width: "100%",
     maxWidth: 440,
@@ -5634,6 +5671,27 @@ const styles = StyleSheet.create({
   journalCard: {
     backgroundColor: "#C08B8A",
     borderColor: "rgba(66, 34, 36, 0.35)",
+  },
+  journalEntriesCard: {
+    width: "72%",
+    maxWidth: 220,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    padding: 0,
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
+  journalEntriesTitle: {
+    width: "100%",
+    textAlign: "center",
+    color: "rgba(240, 224, 192, 0.96)",
+    textShadowColor: "rgba(18, 10, 5, 0.9)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    fontSize: 15,
   },
   journalComposeCard: {
     width: "100%",
@@ -5755,24 +5813,28 @@ const styles = StyleSheet.create({
   },
   journalList: {
     paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
+  journalEntryPressable: {
+    marginBottom: spacing.md,
   },
   journalEntry: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    backgroundColor: colors.surfaceAlt,
-    marginBottom: spacing.sm,
+    gap: spacing.xs,
+    minHeight: 62,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  journalEntryParchment: {
+    resizeMode: "stretch",
   },
   journalEntryThumb: {
-    width: 52,
-    height: 72,
-    borderRadius: 8,
+    width: 30,
+    height: 42,
+    borderRadius: 4,
     borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderColor: "rgba(72, 38, 15, 0.55)",
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
   },
@@ -5785,22 +5847,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   journalEntryTitle: {
-    color: colors.text,
+    color: "rgba(58, 30, 12, 0.96)",
     fontWeight: "700",
-    fontSize: 16,
-    marginBottom: 2,
+    fontSize: 12,
+    marginBottom: 1,
     fontFamily: appFontFamily,
   },
   journalEntryDate: {
-    color: "rgba(17, 16, 15, 0.58)",
-    fontSize: 12,
-    marginBottom: spacing.xs,
+    color: "rgba(72, 38, 15, 0.68)",
+    fontSize: 9,
+    marginBottom: 2,
     fontFamily: appFontFamily,
   },
   journalEntryBody: {
-    color: colors.textSoft,
-    fontSize: 14,
-    lineHeight: 20,
+    color: "rgba(58, 30, 12, 0.9)",
+    fontSize: 10,
+    lineHeight: 13,
     fontFamily: appFontFamily,
   },
   journalFlipWrap: {
@@ -5987,6 +6049,12 @@ const styles = StyleSheet.create({
     width: 78,
     height: 56,
   },
+  journalEntriesCloseButton: {
+    width: 78,
+    height: 56,
+    alignSelf: "center",
+    marginTop: spacing.xs,
+  },
   journalCloseButton: {
     minHeight: 44,
     paddingHorizontal: spacing.lg,
@@ -6062,6 +6130,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: "center",
     transform: [{ translateY: -22 }],
+  },
+  journalDetailActions: {
+    width: "94%",
+    marginTop: "auto",
+    transform: [{ translateY: -15 }],
   },
   clearButton: {
     marginTop: spacing.sm,
