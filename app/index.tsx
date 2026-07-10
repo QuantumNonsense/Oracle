@@ -161,9 +161,11 @@ const PRIVACY_POLICY_URL = "https://privacy.quantumnonsense.com/";
 const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
 const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
 const MUSIC_TRACKS = [
-  require("../assets/Music/Mosslight.Whispers.mp3"),
-  require("../assets/Music/Mosslight.Whispers.2.mp3"),
+  require("../assets/Music/MushroomSpaharpsnovoxnobass.wav"),
 ];
+const SHUFFLE_SOUND = require("../assets/sounds/shufflebubbles.wav");
+const CARD_TAP_SOUND = require("../assets/sounds/cardtapbubbles.wav");
+const CARD_FLIP_SOUND = require("../assets/sounds/cardflipbubbles.wav");
 
 type HistoryEntry = {
   id: string;
@@ -551,7 +553,7 @@ function OracleApp() {
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
@@ -659,9 +661,10 @@ function OracleApp() {
   const currentCardIdRef = useRef<string | null>(null);
   const reflectionQuestionCursorsRef = useRef<ReflectionQuestionIndexMap>({});
   const didAdvanceReflectionQuestionCursorsRef = useRef(false);
-  const isAudioEnabledRef = useRef(false);
+  const isAudioEnabledRef = useRef(true);
   const activeTrackIndexRef = useRef(0);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const effectSoundsRef = useRef<Set<Audio.Sound>>(new Set());
   const audioLoadVersionRef = useRef(0);
   const [isCardInteractionLocked, setIsCardInteractionLocked] = useState(false);
   const [isIosDetailOverlayVisible, setIsIosDetailOverlayVisible] =
@@ -944,6 +947,29 @@ function OracleApp() {
     }
   }, []);
 
+  const playSoundEffect = useCallback(async (source: number) => {
+    if (!isAudioEnabledRef.current) {
+      return;
+    }
+    try {
+      const { sound } = await Audio.Sound.createAsync(source, {
+        shouldPlay: true,
+        volume: 1,
+      });
+      effectSoundsRef.current.add(sound);
+      sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        if (!status.isLoaded || !status.didJustFinish) {
+          return;
+        }
+        sound.setOnPlaybackStatusUpdate(null);
+        effectSoundsRef.current.delete(sound);
+        void sound.unloadAsync();
+      });
+    } catch (error) {
+      // Sound effects may be blocked on web until user interaction.
+    }
+  }, []);
+
   const playTrackAtIndex = useCallback(
     async (index: number) => {
       if (!isAudioEnabledRef.current) {
@@ -959,7 +985,7 @@ function OracleApp() {
           MUSIC_TRACKS[normalizedIndex],
           {
             shouldPlay: true,
-            isLooping: false,
+            isLooping: true,
             volume: 1,
           },
         );
@@ -969,18 +995,6 @@ function OracleApp() {
         }
         soundRef.current = sound;
         activeTrackIndexRef.current = normalizedIndex;
-        sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
-          if (
-            !status.isLoaded ||
-            !status.didJustFinish ||
-            !isAudioEnabledRef.current
-          ) {
-            return;
-          }
-          void playTrackAtIndex(
-            (activeTrackIndexRef.current + 1) % MUSIC_TRACKS.length,
-          );
-        });
       } catch (error) {
         // Autoplay can be blocked on web until user interaction.
       }
@@ -1010,6 +1024,8 @@ function OracleApp() {
     return () => {
       audioLoadVersionRef.current += 1;
       void unloadCurrentSound();
+      effectSoundsRef.current.forEach((sound) => void sound.unloadAsync());
+      effectSoundsRef.current.clear();
     };
   }, [playTrackAtIndex, unloadCurrentSound]);
 
@@ -1025,7 +1041,42 @@ function OracleApp() {
     if (soundRef.current) {
       void soundRef.current.pauseAsync();
     }
+    effectSoundsRef.current.forEach((sound) => void sound.unloadAsync());
+    effectSoundsRef.current.clear();
   }, [isAudioEnabled, playTrackAtIndex]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+
+    const retryEnabledMusic = async () => {
+      if (!isAudioEnabledRef.current) {
+        return;
+      }
+      try {
+        const activeSound = soundRef.current;
+        if (activeSound) {
+          const status = await activeSound.playAsync();
+          if (status.isLoaded && status.isPlaying) {
+            document.removeEventListener("pointerdown", retryEnabledMusic);
+            document.removeEventListener("keydown", retryEnabledMusic);
+          }
+          return;
+        }
+        await playTrackAtIndex(activeTrackIndexRef.current);
+      } catch (error) {
+        // Keep the listeners active so another user interaction can retry.
+      }
+    };
+
+    document.addEventListener("pointerdown", retryEnabledMusic);
+    document.addEventListener("keydown", retryEnabledMusic);
+    return () => {
+      document.removeEventListener("pointerdown", retryEnabledMusic);
+      document.removeEventListener("keydown", retryEnabledMusic);
+    };
+  }, [playTrackAtIndex]);
 
   const toggleAudio = useCallback(() => {
     setIsAudioEnabled((prev) => {
@@ -1387,6 +1438,7 @@ function OracleApp() {
       if (!card) {
         return;
       }
+      void playSoundEffect(CARD_TAP_SOUND);
       advanceReflectionQuestionsForDraw([card]);
       setCurrentCard(card);
       recordDrawBatch([card], "single", [selectionSlot]);
@@ -1550,6 +1602,10 @@ function OracleApp() {
       return;
     }
 
+    const flipSoundTimeout = setTimeout(() => {
+      void playSoundEffect(CARD_FLIP_SOUND);
+    }, TRIPLE_CARD_GROW_DURATION_MS + TRIPLE_CARD_REVEAL_DELAY_MS);
+
     const flipValues = [0, 1, 2].map((index) => getTripleCardFlipAnim(index));
     tripleCardGrowAnim.setValue(0);
     flipValues.forEach((value) => {
@@ -1598,6 +1654,7 @@ function OracleApp() {
     });
 
     return () => {
+      clearTimeout(flipSoundTimeout);
       if (tripleCardTransitionAnimationRef.current === animation) {
         animation.stop();
         tripleCardTransitionAnimationRef.current = null;
@@ -1606,6 +1663,7 @@ function OracleApp() {
   }, [
     completeTripleCardTransition,
     getTripleCardFlipAnim,
+    playSoundEffect,
     tripleCardGrowAnim,
     tripleCardTransition,
   ]);
@@ -1619,6 +1677,7 @@ function OracleApp() {
         ? SINGLE_CARD_CONFIRM_BACK_HOLD_MS
         : DEFAULT_AUTO_FLIP_BACK_HOLD_MS;
     const revealTimeout = setTimeout(() => {
+      void playSoundEffect(CARD_FLIP_SOUND);
       setIsFront(true);
     }, backHoldMs);
     const unlockTimeout = setTimeout(
@@ -1631,7 +1690,7 @@ function OracleApp() {
       clearTimeout(revealTimeout);
       clearTimeout(unlockTimeout);
     };
-  }, [autoFlipNext, currentCard, drawMode]);
+  }, [autoFlipNext, currentCard, drawMode, playSoundEffect]);
 
   useEffect(() => {
     isDetailModeRef.current = isDetailMode;
@@ -2496,6 +2555,7 @@ function OracleApp() {
     if (isTripleCardTransitioningRef.current) {
       return;
     }
+    void playSoundEffect(SHUFFLE_SOUND);
     if (detailFlipTimeoutRef.current) {
       clearTimeout(detailFlipTimeoutRef.current);
       detailFlipTimeoutRef.current = null;
@@ -2520,6 +2580,7 @@ function OracleApp() {
     cancelTripleCardTransition,
     clearCardInteractionLock,
     isShuffling,
+    playSoundEffect,
     startShuffle,
   ]);
   const animateShuffleButtonPress = useCallback(
@@ -2553,6 +2614,8 @@ function OracleApp() {
     if (!currentCard || !flipPair) {
       return;
     }
+    void playSoundEffect(CARD_TAP_SOUND);
+    void playSoundEffect(CARD_FLIP_SOUND);
 
     const hasDetail = Boolean(currentCard.detailImage);
     if (
@@ -2626,6 +2689,7 @@ function OracleApp() {
     isDetailMode,
     isFront,
     lockCardInteraction,
+    playSoundEffect,
   ]);
 
   const handleDetailBack = useCallback(() => {
@@ -2792,6 +2856,7 @@ function OracleApp() {
       if (isTripleCardTransitioningRef.current) {
         return;
       }
+      void playSoundEffect(CARD_TAP_SOUND);
       if (drawMode === "triple") {
         const alreadySelected = selectedSlots.includes(slotIndex);
         if (isConfirmOpenRef.current) {
@@ -2848,6 +2913,7 @@ function OracleApp() {
       animateTripleSelectionSlot,
       drawMode,
       isShuffling,
+      playSoundEffect,
       selectedSlots,
     ],
   );
@@ -3439,7 +3505,7 @@ function OracleApp() {
       setExpandedTripleCardIndex(index);
       setIsExpandedTripleFront(nextFront);
     },
-    [persistLastCard, tripleCardFrontById, tripleCards],
+    [persistLastCard, playSoundEffect, tripleCardFrontById, tripleCards],
   );
   const closeExpandedTripleCard = useCallback(() => {
     if (expandedTripleCard) {
@@ -3455,12 +3521,14 @@ function OracleApp() {
     if (!expandedTripleCard || !isExpandedTripleFront) {
       return;
     }
+    void playSoundEffect(CARD_TAP_SOUND);
+    void playSoundEffect(CARD_FLIP_SOUND);
     setIsExpandedTripleFront(false);
     setTripleCardFrontById((state) => ({
       ...state,
       [expandedTripleCard.id]: false,
     }));
-  }, [expandedTripleCard, isExpandedTripleFront]);
+  }, [expandedTripleCard, isExpandedTripleFront, playSoundEffect]);
   const handleExpandedTripleTitlePress = useCallback(() => {
     if (!expandedTripleCard || isExpandedTripleFront) {
       return;
@@ -4617,6 +4685,7 @@ function OracleApp() {
                         <View style={styles.journalFlipWrap}>
                           <Pressable
                             onPress={() => {
+                              void playSoundEffect(CARD_TAP_SOUND);
                               setIsJournalDetailCardFront(true);
                               setIsJournalDetailCardExpanded(true);
                             }}
@@ -4713,7 +4782,11 @@ function OracleApp() {
                       <CardFlip
                         isFront={isJournalDetailCardFront}
                         onBeforeFlip={() =>
-                          setIsJournalDetailCardFront((prev) => !prev)
+                          {
+                            void playSoundEffect(CARD_TAP_SOUND);
+                            void playSoundEffect(CARD_FLIP_SOUND);
+                            setIsJournalDetailCardFront((prev) => !prev);
+                          }
                         }
                         disabled={!isJournalDetailCardFront}
                         idle={false}
