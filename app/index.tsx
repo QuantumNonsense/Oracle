@@ -70,6 +70,97 @@ type ShuffleAnimationVariant =
   | "threePileCut";
 type ShuffleAnimationMode = ShuffleAnimationVariant | "alternating" | "random";
 
+const JOURNAL_DELETE_ACTION_WIDTH = 76;
+
+type SwipeToDeleteRowProps = {
+  children: ReactNode;
+  accessibilityLabel: string;
+  onOpen: () => void;
+  onDelete: () => void;
+};
+
+function SwipeToDeleteRow({
+  children,
+  accessibilityLabel,
+  onOpen,
+  onDelete,
+}: SwipeToDeleteRowProps) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const isOpenRef = useRef(false);
+
+  const settle = useCallback(
+    (open: boolean) => {
+      isOpenRef.current = open;
+      Animated.spring(translateX, {
+        toValue: open ? -JOURNAL_DELETE_ACTION_WIDTH : 0,
+        useNativeDriver: true,
+        speed: 24,
+        bounciness: 0,
+      }).start();
+    },
+    [translateX],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) > 8 &&
+          Math.abs(gesture.dx) > Math.abs(gesture.dy),
+        onPanResponderMove: (_, gesture) => {
+          const startingX = isOpenRef.current
+            ? -JOURNAL_DELETE_ACTION_WIDTH
+            : 0;
+          translateX.setValue(
+            Math.max(
+              -JOURNAL_DELETE_ACTION_WIDTH,
+              Math.min(0, startingX + gesture.dx),
+            ),
+          );
+        },
+        onPanResponderRelease: (_, gesture) => {
+          const shouldOpen = isOpenRef.current
+            ? gesture.dx < JOURNAL_DELETE_ACTION_WIDTH / 2
+            : gesture.dx < -JOURNAL_DELETE_ACTION_WIDTH / 2;
+          settle(shouldOpen);
+        },
+        onPanResponderTerminate: () => settle(isOpenRef.current),
+      }),
+    [settle, translateX],
+  );
+
+  return (
+    <View style={styles.journalSwipeRow}>
+      <Pressable
+        accessibilityLabel="Delete journal entry"
+        accessibilityRole="button"
+        onPress={onDelete}
+        style={styles.journalDeleteAction}
+      >
+        <Text style={styles.journalDeleteActionText}>Delete</Text>
+      </Pressable>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[styles.journalSwipeContent, { transform: [{ translateX }] }]}
+      >
+        <Pressable
+          style={styles.journalEntryPressable}
+          onPress={() => {
+            if (isOpenRef.current) {
+              settle(false);
+              return;
+            }
+            onOpen();
+          }}
+          accessibilityLabel={accessibilityLabel}
+        >
+          {children}
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 // Use "random" to choose shuffles without immediate repeats, or force a named
 // shuffle.
 const SHUFFLE_ANIMATION_MODE: ShuffleAnimationMode = "random";
@@ -1320,6 +1411,20 @@ function OracleApp() {
   const closeJournalEntries = useCallback(() => {
     setIsJournalEntriesOpen(false);
   }, []);
+
+  const deleteJournalEntry = useCallback(
+    (entryId: string) => {
+      setJournalEntries((prev) => {
+        const next = prev.filter((entry) => entry.id !== entryId);
+        persistJournals(next);
+        return next;
+      });
+      setSelectedJournalEntryId((selectedId) =>
+        selectedId === entryId ? null : selectedId,
+      );
+    },
+    [persistJournals],
+  );
 
   const closeJournalDetail = useCallback(() => {
     if (isJournalDetailCardExpanded) {
@@ -3586,13 +3691,13 @@ function OracleApp() {
     const card = cardsById.get(item.cardId) ?? null;
     const title = card?.title ?? "Card";
     return (
-      <Pressable
-        style={styles.journalEntryPressable}
-        onPress={() => {
+      <SwipeToDeleteRow
+        accessibilityLabel={`Open journal entry for ${title}`}
+        onOpen={() => {
           setSelectedJournalEntryId(item.id);
           setIsJournalEntriesOpen(false);
         }}
-        accessibilityLabel={`Open journal entry for ${title}`}
+        onDelete={() => deleteJournalEntry(item.id)}
       >
         <ImageBackground
           source={parchmentImage}
@@ -3616,9 +3721,9 @@ function OracleApp() {
             </Text>
           </View>
         </ImageBackground>
-      </Pressable>
+      </SwipeToDeleteRow>
     );
-  }, []);
+  }, [deleteJournalEntry]);
 
   if (!fontsLoaded) {
     return null;
@@ -4514,12 +4619,11 @@ function OracleApp() {
                           { marginTop: tripleExpandedActionsOffset },
                         ]}
                       >
-                        <ThemedButton
-                          label="Journal"
+                        <ImageButton
+                          accessibilityLabel="Open journal"
+                          source={journalStoneImage}
                           onPress={openJournalFromExpandedTriple}
-                          variant="secondary"
-                          style={styles.tripleExpandedActionButton}
-                          labelStyle={styles.tripleExpandedActionLabel}
+                          style={styles.tripleExpandedJournalImageButton}
                         />
                         <ImageButton
                           accessibilityLabel="Flip card"
@@ -5419,15 +5523,9 @@ const styles = StyleSheet.create({
   tripleExpandedCloseRow: {
     justifyContent: "center",
   },
-  tripleExpandedActionButton: {
-    flex: 1,
-    minHeight: 42,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 999,
-    backgroundColor: "#f2c8a7",
-    borderColor: "#d4a47d",
-    borderWidth: 1,
+  tripleExpandedJournalImageButton: {
+    width: 96,
+    height: 54,
   },
   tripleExpandedImageButton: {
     width: 96,
@@ -5436,11 +5534,6 @@ const styles = StyleSheet.create({
   tripleExpandedFlipImageButton: {
     width: 77,
     height: 54,
-  },
-  tripleExpandedActionLabel: {
-    color: "#2b0a00",
-    letterSpacing: 0.25,
-    fontSize: 17.6,
   },
   cardWrapper: {
     position: "relative",
@@ -5888,8 +5981,33 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.xs,
   },
-  journalEntryPressable: {
+  journalSwipeRow: {
+    position: "relative",
+    overflow: "hidden",
     marginBottom: spacing.md,
+    borderRadius: radii.md,
+  },
+  journalSwipeContent: {
+    width: "100%",
+  },
+  journalDeleteAction: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: JOURNAL_DELETE_ACTION_WIDTH,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#7d211b",
+  },
+  journalDeleteActionText: {
+    color: "#fff5e8",
+    fontFamily: appFontFamily,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  journalEntryPressable: {
+    width: "100%",
   },
   journalEntry: {
     flexDirection: "row",

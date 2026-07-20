@@ -259,7 +259,7 @@ export const cards: Card[] = [
   },
   {
     id: "lamellae",
-    title: "Lamellae",
+    title: "Gills",
     image: cardImages[12],
     detailImage: detailBackground,
     description: [
@@ -291,7 +291,7 @@ export const cards: Card[] = [
   },
   {
     id: "cap-pileus",
-    title: "Pileus",
+    title: "Cap",
     image: cardImages[14],
     detailImage: detailBackground,
     description: [
