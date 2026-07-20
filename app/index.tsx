@@ -1235,7 +1235,13 @@ function OracleApp() {
       ),
     ).start(({ finished }) => {
       if (finished) {
+        shuffleAnimRef.current?.stop();
+        shuffleAnimRef.current = null;
+        setIsShuffling(false);
         setIsSettingsOpen(false);
+        InteractionManager.runAfterInteractions(() => {
+          setShuffleStartRequest((previous) => previous + 1);
+        });
       }
     });
   }, [settingsItemAnims]);
