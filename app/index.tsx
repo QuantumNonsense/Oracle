@@ -245,6 +245,9 @@ const FAVORITES_KEY = "oracle:favorites";
 const LAST_CARD_KEY = "oracle:last-card";
 const HISTORY_KEY = "oracle:history:v1";
 const JOURNAL_KEY = "oracle:journals:v1";
+const MUSIC_ENABLED_KEY = "oracle:music-enabled:v1";
+const SOUND_EFFECTS_ENABLED_KEY = "oracle:sound-effects-enabled:v1";
+const DRAW_MODE_KEY = "oracle:draw-mode:v1";
 const REFLECTION_QUESTION_CURSORS_KEY =
   "oracle:reflection-question-cursors:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
@@ -644,7 +647,9 @@ function OracleApp() {
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
   const [isJournalEntriesOpen, setIsJournalEntriesOpen] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isMusicEnabled, setIsMusicEnabled] = useState(true);
+  const [areSoundEffectsEnabled, setAreSoundEffectsEnabled] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
@@ -752,7 +757,11 @@ function OracleApp() {
   const currentCardIdRef = useRef<string | null>(null);
   const reflectionQuestionCursorsRef = useRef<ReflectionQuestionIndexMap>({});
   const didAdvanceReflectionQuestionCursorsRef = useRef(false);
-  const isAudioEnabledRef = useRef(true);
+  const isMusicEnabledRef = useRef(true);
+  const areSoundEffectsEnabledRef = useRef(true);
+  const settingsItemAnims = useRef(
+    Array.from({ length: 5 }, () => new Animated.Value(0)),
+  ).current;
   const activeTrackIndexRef = useRef(0);
   const soundRef = useRef<Audio.Sound | null>(null);
   const effectSoundsRef = useRef<Set<Audio.Sound>>(new Set());
@@ -1009,8 +1018,12 @@ function OracleApp() {
   }, [currentCard, detailContentNode]);
 
   useEffect(() => {
-    isAudioEnabledRef.current = isAudioEnabled;
-  }, [isAudioEnabled]);
+    isMusicEnabledRef.current = isMusicEnabled;
+  }, [isMusicEnabled]);
+
+  useEffect(() => {
+    areSoundEffectsEnabledRef.current = areSoundEffectsEnabled;
+  }, [areSoundEffectsEnabled]);
 
   useEffect(() => {
     deckStateRef.current = deckState;
@@ -1039,7 +1052,7 @@ function OracleApp() {
   }, []);
 
   const playSoundEffect = useCallback(async (source: number) => {
-    if (!isAudioEnabledRef.current) {
+    if (!areSoundEffectsEnabledRef.current) {
       return;
     }
     try {
@@ -1063,7 +1076,7 @@ function OracleApp() {
 
   const playTrackAtIndex = useCallback(
     async (index: number) => {
-      if (!isAudioEnabledRef.current) {
+      if (!isMusicEnabledRef.current) {
         return;
       }
       const loadVersion = ++audioLoadVersionRef.current;
@@ -1107,7 +1120,7 @@ function OracleApp() {
       } catch (error) {
         // Ignore unsupported platform audio mode errors.
       }
-      if (isAudioEnabledRef.current) {
+      if (isMusicEnabledRef.current) {
         await playTrackAtIndex(0);
       }
     };
@@ -1121,7 +1134,7 @@ function OracleApp() {
   }, [playTrackAtIndex, unloadCurrentSound]);
 
   useEffect(() => {
-    if (isAudioEnabled) {
+    if (isMusicEnabled) {
       if (soundRef.current) {
         void soundRef.current.playAsync();
       } else {
@@ -1132,9 +1145,15 @@ function OracleApp() {
     if (soundRef.current) {
       void soundRef.current.pauseAsync();
     }
+  }, [isMusicEnabled, playTrackAtIndex]);
+
+  useEffect(() => {
+    if (areSoundEffectsEnabled) {
+      return;
+    }
     effectSoundsRef.current.forEach((sound) => void sound.unloadAsync());
     effectSoundsRef.current.clear();
-  }, [isAudioEnabled, playTrackAtIndex]);
+  }, [areSoundEffectsEnabled]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") {
@@ -1142,7 +1161,7 @@ function OracleApp() {
     }
 
     const retryEnabledMusic = async () => {
-      if (!isAudioEnabledRef.current) {
+      if (!isMusicEnabledRef.current) {
         return;
       }
       try {
@@ -1169,13 +1188,57 @@ function OracleApp() {
     };
   }, [playTrackAtIndex]);
 
-  const toggleAudio = useCallback(() => {
-    setIsAudioEnabled((prev) => {
+  const toggleMusic = useCallback(() => {
+    setIsMusicEnabled((prev) => {
       const next = !prev;
-      isAudioEnabledRef.current = next;
+      isMusicEnabledRef.current = next;
+      void storage.setItem(MUSIC_ENABLED_KEY, String(next));
       return next;
     });
   }, []);
+
+  const toggleSoundEffects = useCallback(() => {
+    setAreSoundEffectsEnabled((prev) => {
+      const next = !prev;
+      areSoundEffectsEnabledRef.current = next;
+      void storage.setItem(SOUND_EFFECTS_ENABLED_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const openSettings = useCallback(() => {
+    settingsItemAnims.forEach((animation) => animation.setValue(0));
+    setIsSettingsOpen(true);
+    Animated.stagger(
+      70,
+      settingsItemAnims.map((animation) =>
+        Animated.timing(animation, {
+          toValue: 1,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    ).start();
+  }, [settingsItemAnims]);
+
+  const closeSettings = useCallback(() => {
+    Animated.stagger(
+      45,
+      [...settingsItemAnims].reverse().map((animation) =>
+        Animated.timing(animation, {
+          toValue: 0,
+          duration: 190,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ),
+    ).start(({ finished }) => {
+      if (finished) {
+        setIsSettingsOpen(false);
+      }
+    });
+  }, [settingsItemAnims]);
 
   const applyDeckState = useCallback((next: DeckState) => {
     deckStateRef.current = next;
@@ -1207,13 +1270,33 @@ function OracleApp() {
         storedHistory,
         storedJournals,
         storedReflectionQuestionCursors,
+        storedMusicEnabled,
+        storedSoundEffectsEnabled,
+        storedDrawMode,
       ] = await Promise.all([
         storage.getItem(FAVORITES_KEY),
         storage.getItem(LAST_CARD_KEY),
         storage.getItem(HISTORY_KEY),
         storage.getItem(JOURNAL_KEY),
         storage.getItem(REFLECTION_QUESTION_CURSORS_KEY),
+        storage.getItem(MUSIC_ENABLED_KEY),
+        storage.getItem(SOUND_EFFECTS_ENABLED_KEY),
+        storage.getItem(DRAW_MODE_KEY),
       ]);
+
+      if (storedMusicEnabled === "false") {
+        isMusicEnabledRef.current = false;
+        setIsMusicEnabled(false);
+      }
+
+      if (storedSoundEffectsEnabled === "false") {
+        areSoundEffectsEnabledRef.current = false;
+        setAreSoundEffectsEnabled(false);
+      }
+
+      if (storedDrawMode === "single" || storedDrawMode === "triple") {
+        setDrawMode(storedDrawMode);
+      }
 
       if (storedFavorites) {
         try {
@@ -3049,7 +3132,11 @@ function OracleApp() {
     setExpandedTripleCardIndex(null);
     setIsExpandedTripleFront(true);
     setTripleCardFrontById({});
-    setDrawMode((prev) => (prev === "single" ? "triple" : "single"));
+    setDrawMode((prev) => {
+      const next = prev === "single" ? "triple" : "single";
+      void storage.setItem(DRAW_MODE_KEY, next);
+      return next;
+    });
   }, [
     canSwitchDrawMode,
     resetSingleSelectionAnims,
@@ -3568,16 +3655,6 @@ function OracleApp() {
     singleCardTransitionSlot,
   ]);
   const isTripleExpandedOpen = expandedTripleCardIndex !== null;
-  const isHomeScreen =
-    !currentCard &&
-    !showTriplePyramid &&
-    !isTripleCardTransitioning &&
-    !isTripleExpandedOpen &&
-    !isHistoryOpen &&
-    selectedHistoryId === null &&
-    !isJournalEntriesOpen &&
-    selectedJournalEntryId === null &&
-    !isJournalOpen;
   const expandedTripleCard = isTripleExpandedOpen
     ? (tripleCards[expandedTripleCardIndex] ?? null)
     : null;
@@ -3800,7 +3877,7 @@ function OracleApp() {
                 setBannerLayout({ y, height });
               }}
             />
-            {!currentCard && !isJournalEntriesOpen ? (
+            {!currentCard && !isJournalEntriesOpen && !isSettingsOpen ? (
               <View
                 onLayout={(event) => {
                   const { y, height } = event.nativeEvent.layout;
@@ -4006,7 +4083,9 @@ function OracleApp() {
                   ? null
                   : null}
               </View>
-            ) : !isJournalEntriesOpen && selectedJournalEntryId === null ? (
+            ) : !isJournalEntriesOpen &&
+              selectedJournalEntryId === null &&
+              !isSettingsOpen ? (
               <>
                 <View
                   onLayout={(event) => {
@@ -4461,7 +4540,9 @@ function OracleApp() {
             ) : null}
             <View
               style={{
-                height: showTriplePyramid
+                height: isSettingsOpen
+                  ? 0
+                  : showTriplePyramid
                   ? fanToControlsGap
                   : currentCard
                     ? cardToControlsGap
@@ -4478,6 +4559,7 @@ function OracleApp() {
             >
               {!currentCard &&
               !isJournalEntriesOpen &&
+              !isSettingsOpen &&
               !isConfirmOpen &&
               !isSingleCardTransitioning &&
               !isTripleCardTransitioning &&
@@ -5130,13 +5212,111 @@ function OracleApp() {
           </View>
         </View>
       </ScrollView>
-      {!currentCard ? (
+      {isSettingsOpen ? (
+        <View
+          style={[
+            styles.settingsMenu,
+            {
+              top: insets.top + 180,
+              bottom: insets.bottom + 82,
+            },
+          ]}
+        >
+          {[
+            {
+              label: `Music ${isMusicEnabled ? "On" : "Off"}`,
+              accessibilityLabel: `${isMusicEnabled ? "Disable" : "Enable"} music`,
+              onPress: toggleMusic,
+              icon: (
+                <Image
+                  source={isMusicEnabled ? musicToggleIcon : noMusicToggleIcon}
+                  style={styles.settingsMenuIcon}
+                />
+              ),
+              disabled: false,
+            },
+            {
+              label: `Sound FX ${areSoundEffectsEnabled ? "On" : "Off"}`,
+              accessibilityLabel: `${areSoundEffectsEnabled ? "Disable" : "Enable"} sound effects`,
+              onPress: toggleSoundEffects,
+              icon: <Text style={styles.settingsMenuBadge}>FX</Text>,
+              disabled: false,
+            },
+            {
+              label: drawMode === "single" ? "1 Card" : "3 Cards",
+              accessibilityLabel:
+                drawMode === "single"
+                  ? "Switch to three-card draw mode"
+                  : "Switch to single-card draw mode",
+              onPress: toggleDrawMode,
+              icon: (
+                <Image
+                  source={
+                    drawMode === "single"
+                      ? singleDrawToggleIcon
+                      : tripleDrawToggleIcon
+                  }
+                  style={styles.settingsMenuIcon}
+                />
+              ),
+              disabled: !canSwitchDrawMode,
+            },
+            {
+              label: "Privacy Policy",
+              accessibilityLabel: "Open Privacy Policy",
+              onPress: () => {
+                void Linking.openURL(PRIVACY_POLICY_URL);
+              },
+              icon: <Text style={styles.settingsMenuBadge}>i</Text>,
+              disabled: false,
+            },
+            {
+              label: "Return to Cards",
+              accessibilityLabel: "Close settings and return to cards",
+              onPress: closeSettings,
+              icon: <Text style={styles.settingsMenuBadge}>←</Text>,
+              disabled: false,
+            },
+          ].map((item, index) => (
+            <Animated.View
+              key={item.label}
+              style={{
+                opacity: settingsItemAnims[index],
+                transform: [
+                  {
+                    translateY: settingsItemAnims[index].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-22, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Pressable
+                onPress={item.onPress}
+                disabled={item.disabled}
+                accessibilityRole="button"
+                accessibilityLabel={item.accessibilityLabel}
+                style={({ pressed }) => [
+                  styles.settingsMenuButton,
+                  item.disabled ? styles.settingsMenuButtonDisabled : null,
+                  pressed ? styles.settingsMenuButtonPressed : null,
+                ]}
+              >
+                <View style={styles.settingsMenuIconWrap}>{item.icon}</View>
+                <Text style={styles.settingsMenuButtonText}>{item.label}</Text>
+              </Pressable>
+            </Animated.View>
+          ))}
+        </View>
+      ) : null}
+      {!currentCard && !isSettingsOpen ? (
         <Pressable
-          onPress={toggleAudio}
+          onPress={openSettings}
           accessibilityRole="button"
-          accessibilityLabel={isAudioEnabled ? "Disable sound" : "Enable sound"}
+          accessibilityLabel="Open settings"
           style={({ pressed }) => [
-            styles.audioToggle,
+            styles.settingsToggle,
             {
               left: spacing.md + insets.left + 20,
               bottom: spacing.xs + insets.bottom + 10,
@@ -5144,13 +5324,10 @@ function OracleApp() {
             pressed ? styles.audioTogglePressed : null,
           ]}
         >
-          <Image
-            source={isAudioEnabled ? noMusicToggleIcon : musicToggleIcon}
-            style={styles.audioToggleIcon}
-          />
+          <Text style={styles.settingsToggleText}>SETTINGS</Text>
         </Pressable>
       ) : null}
-      {!currentCard && !isTripleCardTransitioning ? (
+      {!currentCard && !isTripleCardTransitioning && !isSettingsOpen ? (
         <Pressable
           onPress={() => setIsJournalEntriesOpen(true)}
           accessibilityRole="button"
@@ -5158,61 +5335,13 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.journalEntriesToggle,
             {
-              right: spacing.md + insets.right + windowWidth * 0.4,
-              bottom: spacing.xs + insets.bottom + windowHeight * 0.02 + 30,
+              right: spacing.md + insets.right + 20,
+              bottom: spacing.xs + insets.bottom + 10,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
         >
           <Image source={journalToggleIcon} style={styles.journalToggleIcon} />
-        </Pressable>
-      ) : null}
-      {!currentCard && !isTripleCardTransitioning ? (
-        <Pressable
-          onPress={toggleDrawMode}
-          disabled={!canSwitchDrawMode}
-          accessibilityRole="button"
-          accessibilityLabel={
-            drawMode === "triple"
-              ? "Switch to single-card draw mode"
-              : "Switch to three-card draw mode"
-          }
-          style={({ pressed }) => [
-            styles.drawModeToggle,
-            {
-              right: spacing.md + insets.right + 20,
-              bottom: spacing.xs + insets.bottom + 10,
-            },
-            drawMode === "triple" ? styles.drawModeToggleActive : null,
-            !canSwitchDrawMode ? styles.drawModeToggleLocked : null,
-            pressed && canSwitchDrawMode ? styles.audioTogglePressed : null,
-          ]}
-        >
-          <Image
-            source={
-              drawMode === "single"
-                ? tripleDrawToggleIcon
-                : singleDrawToggleIcon
-            }
-            style={styles.drawModeToggleIcon}
-          />
-        </Pressable>
-      ) : null}
-      {isHomeScreen ? (
-        <Pressable
-          onPress={() => {
-            void Linking.openURL(PRIVACY_POLICY_URL);
-          }}
-          accessibilityRole="link"
-          accessibilityLabel="Open Privacy Policy"
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.privacyLink,
-            { bottom: insets.bottom + 2 },
-            pressed ? styles.privacyLinkPressed : null,
-          ]}
-        >
-          <Text style={styles.privacyLinkText}>Privacy</Text>
         </Pressable>
       ) : null}
     </View>
@@ -5234,6 +5363,87 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     width: "100%",
+  },
+  settingsMenu: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 35,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingHorizontal: spacing.lg,
+  },
+  settingsMenuButton: {
+    width: 230,
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(226, 211, 174, 0.72)",
+    backgroundColor: "rgba(49, 43, 38, 0.92)",
+    ...shadow,
+  },
+  settingsMenuButtonDisabled: {
+    opacity: 0.45,
+  },
+  settingsMenuButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.88,
+  },
+  settingsMenuIconWrap: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  settingsMenuIcon: {
+    width: 48,
+    height: 48,
+    resizeMode: "contain",
+  },
+  settingsMenuBadge: {
+    color: STONE_LABEL_TEXT_COLOR,
+    fontFamily: appFontFamily,
+    fontSize: 18,
+    fontWeight: customFontHeavyWeight,
+  },
+  settingsMenuButtonText: {
+    flex: 1,
+    color: STONE_LABEL_TEXT_COLOR,
+    fontFamily: appFontFamily,
+    fontSize: 18,
+    textAlign: "center",
+    marginRight: 42,
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 3,
+  },
+  settingsToggle: {
+    position: "absolute",
+    minWidth: 88,
+    height: 44,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(226, 211, 174, 0.72)",
+    backgroundColor: "rgba(49, 43, 38, 0.92)",
+    zIndex: 40,
+    ...shadow,
+  },
+  settingsToggleText: {
+    color: STONE_LABEL_TEXT_COLOR,
+    fontFamily: appFontFamily,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textShadowColor: STONE_LABEL_SHADOW_COLOR,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   audioToggle: {
     position: "absolute",
