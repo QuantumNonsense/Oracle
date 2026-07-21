@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -14,6 +13,7 @@ import {
 import { cardBackImage, cards } from "../decks/defaultDeck";
 import { CARD_HEIGHT_RATIO } from "../lib/cardLayout";
 import ImageButton from "./ImageButton";
+import Text from "./AccessibleText";
 import {
   getCardDrawBreakdown,
   getCardDrawCounts,

@@ -27,7 +27,6 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  Text,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -57,6 +56,7 @@ import {
 } from "../src/lib/journalTracking";
 import { storage } from "../src/lib/storage";
 import CardFlip from "../src/components/CardFlip";
+import Text from "../src/components/AccessibleText";
 import ImageButton from "../src/components/ImageButton";
 import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
@@ -618,6 +618,20 @@ function OracleApp() {
       fontStyle: "normal" as const,
     };
   }, [accessibility.preferences]);
+  const accessibleAnimatedFontStyle = useMemo(
+    () =>
+      accessibility.preferences.dyslexiaFriendlyText
+        ? { fontFamily: "AtkinsonHyperlegible" }
+        : undefined,
+    [accessibility.preferences.dyslexiaFriendlyText],
+  );
+  const accessibleAnimatedBoldFontStyle = useMemo(
+    () =>
+      accessibility.preferences.dyslexiaFriendlyText
+        ? { fontFamily: "AtkinsonHyperlegibleBold" }
+        : undefined,
+    [accessibility.preferences.dyslexiaFriendlyText],
+  );
   const bg = require("../assets/backgrounds/mushroom-field.png");
   const shuffleImage = require("../assets/Shuffle.png");
   const homeImage = require("../assets/Home.png");
@@ -972,7 +986,12 @@ function OracleApp() {
         <View style={styles.detailHeader}>
           {titleLine ? (
             <Animated.Text
-              style={[styles.detailTitleText, getLineStyle(0)]}
+              style={[
+                styles.detailTitleText,
+                accessibleHeadingTextStyle,
+                accessibleAnimatedBoldFontStyle,
+                getLineStyle(0),
+              ]}
               onPress={(event) => {
                 event.stopPropagation();
                 handleDetailBackRef.current();
@@ -997,7 +1016,12 @@ function OracleApp() {
               return (
                 <Animated.Text
                   key={line.key}
-                  style={[styles.detailHeadingText, animatedStyle]}
+                  style={[
+                    styles.detailHeadingText,
+                    accessibleHeadingTextStyle,
+                    accessibleAnimatedBoldFontStyle,
+                    animatedStyle,
+                  ]}
                 >
                   {line.text}
                 </Animated.Text>
@@ -1007,7 +1031,12 @@ function OracleApp() {
               return (
                 <Animated.Text
                   key={line.key}
-                  style={[styles.detailBulletText, animatedStyle]}
+                  style={[
+                    styles.detailBulletText,
+                    accessibleBodyTextStyle,
+                    accessibleAnimatedFontStyle,
+                    animatedStyle,
+                  ]}
                 >
                   {line.text}
                 </Animated.Text>
@@ -1016,7 +1045,12 @@ function OracleApp() {
             return (
               <Animated.Text
                 key={line.key}
-                style={[styles.detailBodyText, animatedStyle]}
+                style={[
+                  styles.detailBodyText,
+                  accessibleBodyTextStyle,
+                  accessibleAnimatedFontStyle,
+                  animatedStyle,
+                ]}
               >
                 {line.text}
               </Animated.Text>
@@ -1025,7 +1059,15 @@ function OracleApp() {
         </ScrollView>
       </View>
     );
-  }, [currentCard, detailLines, detailLineOpacities]);
+  }, [
+    accessibleAnimatedBoldFontStyle,
+    accessibleAnimatedFontStyle,
+    accessibleBodyTextStyle,
+    accessibleHeadingTextStyle,
+    currentCard,
+    detailLines,
+    detailLineOpacities,
+  ]);
   const detailFullNode = useMemo(() => {
     if (!currentCard?.detailImage) {
       return null;
@@ -3920,6 +3962,7 @@ function OracleApp() {
                 <Animated.Text
                   style={[
                     styles.tapHint,
+                    accessibleAnimatedBoldFontStyle,
                     isConfirmOpen ? styles.tapHintConfirm : null,
                     isConfirmOpen ? styles.tapHintCoreConfirm : null,
                     tapPromptPulseStyle,
@@ -3948,6 +3991,7 @@ function OracleApp() {
                       styles.readMoreHint,
                       styles.readMoreHintSmall,
                       styles.tripleHintText,
+                      accessibleAnimatedFontStyle,
                       tapPromptPulseStyle,
                     ]}
                   >
@@ -4477,27 +4521,6 @@ function OracleApp() {
                           source={cardBackImage}
                           style={styles.fanCardImage}
                         />
-                        {isSelected ? (
-                          <View
-                            pointerEvents="none"
-                            style={[
-                              styles.fanSelectedIndicator,
-                              {
-                                backgroundColor: accessibility.colors.surface,
-                                borderColor: accessibility.colors.selected,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.fanSelectedIndicatorText,
-                                { color: accessibility.colors.textPrimary },
-                              ]}
-                            >
-                              ✓ Selected
-                            </Text>
-                          </View>
-                        ) : null}
                       </AnimatedPressable>
                     );
                   })}
@@ -6028,24 +6051,6 @@ const styles = StyleSheet.create({
     borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
-  },
-  fanSelectedIndicator: {
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 2,
-    bottom: 6,
-    left: 6,
-    minHeight: 28,
-    paddingHorizontal: 8,
-    position: "absolute",
-    right: 6,
-    justifyContent: "center",
-  },
-  fanSelectedIndicatorText: {
-    fontFamily: appFontFamily,
-    fontSize: 11,
-    fontWeight: "700",
-    textAlign: "center",
   },
   fanCardHidden: {
     opacity: 0,

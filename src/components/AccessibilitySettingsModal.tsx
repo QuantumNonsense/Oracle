@@ -1,13 +1,14 @@
 import { useCallback } from "react";
 import {
   AccessibilityInfo,
+  ImageBackground,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAccessibility } from "../accessibility/AccessibilityProvider";
 import type { ColorVisionMode } from "../accessibility/preferences";
 import { radii, spacing } from "../theme";
+import Text from "./AccessibleText";
 
 const modeOptions: Array<{ value: ColorVisionMode; label: string }> = [
   { value: "default", label: "Default" },
@@ -27,6 +29,11 @@ type Props = { visible: boolean; onClose: () => void };
 
 export default function AccessibilitySettingsModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const previewCardWidth = Math.min(
+    300,
+    Math.max(220, windowWidth - spacing.lg * 4),
+  );
   const {
     preferences,
     colors,
@@ -205,40 +212,95 @@ export default function AccessibilitySettingsModal({ visible, onClose }: Props) 
           </View>
 
           <View
-            accessible
-            accessibilityLabel="Accessibility Preview. Growth takes many forms. Choose the presentation that feels clearest and most comfortable to you. Selected example. Confirmed."
             style={[
               styles.preview,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              { borderColor: colors.border },
             ]}
           >
             <Text
               accessibilityRole="header"
-              style={[{ color: colors.textPrimary }, headingTextStyle]}
+              style={[
+                { color: colors.textSecondary },
+                bodyTextStyle,
+                styles.previewLabel,
+              ]}
             >
-              Accessibility Preview
+              Card Description Preview
             </Text>
-            <Text style={[styles.previewBody, { color: colors.textSecondary }, bodyTextStyle]}>
-              Growth takes many forms. Choose the presentation that feels clearest and most comfortable to you.
-            </Text>
-            <View style={styles.previewIndicators}>
-              <View
+            <ImageBackground
+              source={require("../../assets/cards/MycelialDescription.png")}
+              resizeMode="stretch"
+              style={[
+                styles.previewCard,
+                {
+                  width: previewCardWidth,
+                  height: previewCardWidth * (1071 / 771),
+                },
+              ]}
+              imageStyle={styles.previewCardImage}
+            >
+              <Text
+                accessibilityRole="header"
                 style={[
-                  styles.previewPill,
-                  { borderColor: colors.selected, backgroundColor: colors.surface },
+                  { color: "#2B0A00" },
+                  headingTextStyle,
+                  styles.previewTitle,
                 ]}
               >
-                <Text style={[styles.indicatorText, { color: colors.textPrimary }]}>✓ Selected</Text>
-              </View>
+                Many Ways of Knowing
+              </Text>
               <View
                 style={[
-                  styles.previewPill,
-                  { borderColor: colors.success, backgroundColor: colors.surface },
+                  styles.previewDivider,
+                  { backgroundColor: "rgba(43, 10, 0, 0.28)" },
                 ]}
+              />
+              <ScrollView
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+                style={styles.previewScroll}
+                contentContainerStyle={styles.previewScrollContent}
               >
-                <Text style={[styles.indicatorText, { color: colors.textPrimary }]}>✓ Confirmed</Text>
-              </View>
-            </View>
+                <Text
+                  style={[
+                    { color: "#2B0A00" },
+                    headingTextStyle,
+                    styles.previewHeading,
+                  ]}
+                >
+                  Meaning
+                </Text>
+                <Text
+                  style={[
+                    { color: "#2B0A00" },
+                    bodyTextStyle,
+                    styles.previewBody,
+                  ]}
+                >
+                  Accessibility makes room for the many ways people perceive,
+                  understand, and move through the world. Different abilities
+                  bring distinct wisdom, creativity, and beauty.
+                </Text>
+                <Text
+                  style={[
+                    { color: "#2B0A00" },
+                    headingTextStyle,
+                    styles.previewSectionHeading,
+                  ]}
+                >
+                  Reflection
+                </Text>
+                <Text
+                  style={[
+                    { color: "#2B0A00" },
+                    bodyTextStyle,
+                    styles.previewBody,
+                  ]}
+                >
+                  What helps you experience the world most fully?
+                </Text>
+              </ScrollView>
+            </ImageBackground>
           </View>
         </ScrollView>
       </View>
@@ -341,10 +403,50 @@ const styles = StyleSheet.create({
   switchLabel: { fontWeight: "700" },
   switchHint: { fontSize: 14, lineHeight: 20, marginTop: 2 },
   divider: { height: StyleSheet.hairlineWidth, opacity: 0.55 },
-  preview: { borderRadius: radii.lg, borderWidth: 2, padding: spacing.md },
-  previewBody: { marginTop: spacing.sm },
-  previewIndicators: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  previewPill: { borderRadius: 999, borderWidth: 2, paddingHorizontal: 12, paddingVertical: 8 },
-  indicatorText: { fontSize: 14, fontWeight: "700" },
+  preview: {
+    alignItems: "center",
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  previewLabel: {
+    alignSelf: "center",
+    fontWeight: "700",
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  previewCard: {
+    alignSelf: "center",
+    borderRadius: 22,
+    overflow: "hidden",
+    paddingHorizontal: 30,
+    paddingTop: 38,
+    paddingBottom: 34,
+  },
+  previewCardImage: { borderRadius: 22 },
+  previewTitle: {
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  previewDivider: {
+    alignSelf: "center",
+    height: 1,
+    marginVertical: spacing.md,
+    opacity: 0.7,
+    width: "72%",
+  },
+  previewHeading: { fontWeight: "700", textAlign: "center" },
+  previewSectionHeading: {
+    fontWeight: "700",
+    marginTop: spacing.lg,
+    textAlign: "center",
+  },
+  previewScroll: { flex: 1 },
+  previewScrollContent: { paddingBottom: spacing.md },
+  previewBody: {
+    flexShrink: 1,
+    marginTop: spacing.sm,
+    textAlign: "center",
+  },
   pressed: { opacity: 0.78 },
 });

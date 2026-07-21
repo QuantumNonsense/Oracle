@@ -3,7 +3,6 @@ import {
   Animated,
   Pressable,
   StyleSheet,
-  Text,
   Platform,
   type StyleProp,
   type TextStyle,
@@ -11,6 +10,7 @@ import {
 } from "react-native";
 import { colors, radii, spacing } from "../theme";
 import { useAccessibility } from "../accessibility/AccessibilityProvider";
+import Text from "./AccessibleText";
 
 type Variant = "primary" | "secondary" | "ghost";
 
