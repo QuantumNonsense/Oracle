@@ -643,6 +643,7 @@ function OracleApp() {
   const musicToggleIcon = require("../assets/music.png");
   const noMusicToggleIcon = require("../assets/nomusic.png");
   const journalToggleIcon = require("../assets/journal.png");
+  const settingsToggleIcon = require("../assets/settings.png");
   const singleDrawToggleIcon = require("../assets/1card.png");
   const tripleDrawToggleIcon = require("../assets/3cards.png");
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -5407,30 +5408,13 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.settingsToggle,
             {
-              backgroundColor: accessibility.colors.surface,
-              borderColor: accessibility.colors.border,
-            },
-            {
               left: spacing.md + insets.left + 20,
               bottom: spacing.xs + insets.bottom + 10,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
         >
-          <Text
-            style={[
-              styles.settingsToggleText,
-              {
-                color: accessibility.colors.textSecondary,
-                fontFamily: accessibility.preferences.dyslexiaFriendlyText
-                  ? "AtkinsonHyperlegibleBold"
-                  : appFontFamily,
-                fontSize: accessibility.preferences.largerText ? 13 : 11,
-              },
-            ]}
-          >
-            SETTINGS
-          </Text>
+          <Image source={settingsToggleIcon} style={styles.settingsToggleIcon} />
         </Pressable>
       ) : null}
       {!currentCard && !isTripleCardTransitioning && !isSettingsOpen ? (
@@ -5441,8 +5425,8 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.journalEntriesToggle,
             {
-              right: spacing.md + insets.right + windowWidth * 0.4,
-              bottom: spacing.xs + insets.bottom + windowHeight * 0.02 + 30,
+              right: spacing.md + insets.right + 20,
+              bottom: spacing.xs + insets.bottom + 10,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
@@ -5464,8 +5448,9 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.drawModeToggle,
             {
-              right: spacing.md + insets.right + 20,
-              bottom: spacing.xs + insets.bottom + 10,
+              left: "50%",
+              marginLeft: -24,
+              bottom: spacing.xs + insets.bottom + 15,
             },
             drawMode === "triple" ? styles.drawModeToggleActive : null,
             !canSwitchDrawMode ? styles.drawModeToggleLocked : null,
@@ -5562,26 +5547,16 @@ const styles = StyleSheet.create({
   },
   settingsToggle: {
     position: "absolute",
-    minWidth: 88,
-    height: 44,
-    paddingHorizontal: 10,
+    width: 48,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(226, 211, 174, 0.72)",
-    backgroundColor: "rgba(49, 43, 38, 0.92)",
     zIndex: 40,
-    ...shadow,
   },
-  settingsToggleText: {
-    color: STONE_LABEL_TEXT_COLOR,
-    fontFamily: appFontFamily,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textShadowColor: STONE_LABEL_SHADOW_COLOR,
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  settingsToggleIcon: {
+    width: 94.5,
+    height: 94.5,
+    resizeMode: "contain",
   },
   audioToggle: {
     position: "absolute",
@@ -5614,8 +5589,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   drawModeToggleIcon: {
-    width: 78.4,
-    height: 76.8,
+    width: 86.436,
+    height: 84.672,
     resizeMode: "contain",
   },
   audioTogglePressed: {
