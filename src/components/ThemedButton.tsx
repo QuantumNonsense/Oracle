@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { colors, radii, spacing } from "../theme";
+import { useAccessibility } from "../accessibility/AccessibilityProvider";
 
 type Variant = "primary" | "secondary" | "ghost";
 
@@ -36,6 +37,7 @@ export default function ThemedButton({
   style,
   labelStyle: labelStyleOverride,
 }: ThemedButtonProps) {
+  const accessibility = useAccessibility();
   const scale = useRef(new Animated.Value(1)).current;
   const translateY = useRef(new Animated.Value(0)).current;
 
@@ -102,6 +104,9 @@ export default function ThemedButton({
 
   return (
     <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: Boolean(disabled) }}
       onPress={onPress}
       disabled={disabled}
       onPressIn={handlePressIn}
@@ -115,10 +120,37 @@ export default function ThemedButton({
             styles.depth,
             pressed && styles.depthPressed,
             disabled && styles.disabled,
+            {
+              borderColor: accessibility.colors.border,
+              minHeight: 44,
+            },
+            variant === "primary" && {
+              backgroundColor: accessibility.colors.accent,
+            },
+            variant === "secondary" && {
+              backgroundColor: accessibility.colors.selected,
+            },
             style,
           ]}
         >
-          <Text style={[labelStyle, labelStyleOverride]}>{label}</Text>
+          <Text
+            style={[
+              labelStyle,
+              {
+                color:
+                  variant === "ghost"
+                    ? accessibility.colors.textPrimary
+                    : accessibility.colors.accentText,
+                fontFamily: accessibility.preferences.dyslexiaFriendlyText
+                  ? "AtkinsonHyperlegibleBold"
+                  : buttonFontFamily,
+                fontSize: accessibility.preferences.largerText ? 20.8 : 17.6,
+              },
+              labelStyleOverride,
+            ]}
+          >
+            {label}
+          </Text>
         </Animated.View>
       )}
     </Pressable>

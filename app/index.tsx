@@ -6,7 +6,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import Constants from "expo-constants";
@@ -61,6 +60,8 @@ import CardFlip from "../src/components/CardFlip";
 import ImageButton from "../src/components/ImageButton";
 import StatsLandingPage from "../src/components/StatsLandingPage";
 import ThemedButton from "../src/components/ThemedButton";
+import AccessibilitySettingsModal from "../src/components/AccessibilitySettingsModal";
+import { useAccessibility } from "../src/accessibility/AccessibilityProvider";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
 
 type ShuffleAnimationVariant =
@@ -592,9 +593,31 @@ export default function Index() {
 }
 
 function OracleApp() {
-  const [fontsLoaded] = useFonts({
-    MilongaRegular: require("../assets/Milonga-Regular.ttf"),
-  });
+  const accessibility = useAccessibility();
+  const accessibleBodyTextStyle = useMemo(() => {
+    if (!accessibility.preferences.dyslexiaFriendlyText && !accessibility.preferences.largerText) return undefined;
+    const scale = accessibility.preferences.largerText ? 1.18 : 1;
+    return {
+      fontFamily: accessibility.preferences.dyslexiaFriendlyText ? "AtkinsonHyperlegible" : detailFontFamily,
+      fontSize: 17 * scale,
+      lineHeight: Math.round(25 * scale),
+      letterSpacing: accessibility.preferences.dyslexiaFriendlyText ? 0.25 : 0,
+      textAlign: "left" as const,
+      fontStyle: "normal" as const,
+    };
+  }, [accessibility.preferences]);
+  const accessibleHeadingTextStyle = useMemo(() => {
+    if (!accessibility.preferences.dyslexiaFriendlyText && !accessibility.preferences.largerText) return undefined;
+    const scale = accessibility.preferences.largerText ? 1.18 : 1;
+    return {
+      fontFamily: accessibility.preferences.dyslexiaFriendlyText ? "AtkinsonHyperlegibleBold" : detailFontFamilyBold,
+      fontSize: 22 * scale,
+      lineHeight: Math.round(29 * scale),
+      letterSpacing: accessibility.preferences.dyslexiaFriendlyText ? 0.2 : 0,
+      textAlign: "left" as const,
+      fontStyle: "normal" as const,
+    };
+  }, [accessibility.preferences]);
   const bg = require("../assets/backgrounds/mushroom-field.png");
   const shuffleImage = require("../assets/Shuffle.png");
   const homeImage = require("../assets/Home.png");
@@ -650,6 +673,7 @@ function OracleApp() {
   const [isMusicEnabled, setIsMusicEnabled] = useState(true);
   const [areSoundEffectsEnabled, setAreSoundEffectsEnabled] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState<
     string | null
   >(null);
@@ -3808,16 +3832,12 @@ function OracleApp() {
     );
   }, [deleteJournalEntry]);
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: accessibility.colors.background }]}>
       {Platform.OS === "android" ? (
         <StatusBar
           style="light"
-          backgroundColor={colors.bg}
+          backgroundColor={accessibility.colors.background}
           translucent={false}
         />
       ) : null}
@@ -3839,6 +3859,7 @@ function OracleApp() {
         pointerEvents="none"
         style={[
           styles.bgTint,
+          { backgroundColor: accessibility.colors.overlay },
           {
             top: -insets.top,
             bottom: -insets.bottom,
@@ -4414,6 +4435,7 @@ function OracleApp() {
                         onPress={() => handleSelectFromFan(index)}
                         accessibilityRole="button"
                         accessibilityLabel={`Pick card ${index + 1}`}
+                        accessibilityState={{ selected: isSelected }}
                         style={[
                           styles.fanCard,
                           isTransitionSource ? styles.fanCardHidden : null,
@@ -4455,7 +4477,27 @@ function OracleApp() {
                           source={cardBackImage}
                           style={styles.fanCardImage}
                         />
-                        {isSelected && isConfirmOpen ? null : null}
+                        {isSelected ? (
+                          <View
+                            pointerEvents="none"
+                            style={[
+                              styles.fanSelectedIndicator,
+                              {
+                                backgroundColor: accessibility.colors.surface,
+                                borderColor: accessibility.colors.selected,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.fanSelectedIndicatorText,
+                                { color: accessibility.colors.textPrimary },
+                              ]}
+                            >
+                              ✓ Selected
+                            </Text>
+                          </View>
+                        ) : null}
                       </AnimatedPressable>
                     );
                   })}
@@ -4665,7 +4707,7 @@ function OracleApp() {
                                     return (
                                       <Text
                                         key={line.key}
-                                        style={styles.detailHeadingText}
+                                        style={[styles.detailHeadingText, accessibleHeadingTextStyle]}
                                       >
                                         {line.text}
                                       </Text>
@@ -4675,7 +4717,7 @@ function OracleApp() {
                                     return (
                                       <Text
                                         key={line.key}
-                                        style={styles.detailBulletText}
+                                        style={[styles.detailBulletText, accessibleBodyTextStyle]}
                                       >
                                         {line.text}
                                       </Text>
@@ -4684,7 +4726,7 @@ function OracleApp() {
                                   return (
                                     <Text
                                       key={line.key}
-                                      style={styles.detailBodyText}
+                                      style={[styles.detailBodyText, accessibleBodyTextStyle]}
                                     >
                                       {line.text}
                                     </Text>
@@ -4919,7 +4961,7 @@ function OracleApp() {
                           </View>
                         ) : null}
                         <View style={styles.journalReflectionWrap}>
-                          <Text style={styles.journalReflectionTitle}>
+                          <Text style={[styles.journalReflectionTitle, accessibleHeadingTextStyle]}>
                             Your Reflection
                           </Text>
                           <ScrollView
@@ -5161,7 +5203,7 @@ function OracleApp() {
                           >
                             <Text
                               allowFontScaling={false}
-                              style={styles.journalPeekText}
+                              style={[styles.journalPeekText, accessibleBodyTextStyle]}
                             >
                               {journalPeekLines.length > 0
                                 ? journalPeekLines.map((line, index) => (
@@ -5185,7 +5227,7 @@ function OracleApp() {
                         </View>
                         <Text
                           allowFontScaling={false}
-                          style={styles.journalReflectionTitle}
+                          style={[styles.journalReflectionTitle, accessibleHeadingTextStyle]}
                         >
                           Your Reflection
                         </Text>
@@ -5198,7 +5240,7 @@ function OracleApp() {
                           multiline
                           textAlignVertical="top"
                           allowFontScaling={false}
-                          style={styles.journalInput}
+                          style={[styles.journalInput, accessibleBodyTextStyle]}
                         />
                         <View style={styles.journalActions}>
                           <ThemedButton
@@ -5223,7 +5265,7 @@ function OracleApp() {
           style={[
             styles.settingsMenu,
             {
-              top: insets.top + 180,
+              top: insets.top + 96,
               bottom: insets.bottom + 82,
             },
           ]}
@@ -5245,27 +5287,15 @@ function OracleApp() {
               label: `Sound FX ${areSoundEffectsEnabled ? "On" : "Off"}`,
               accessibilityLabel: `${areSoundEffectsEnabled ? "Disable" : "Enable"} sound effects`,
               onPress: toggleSoundEffects,
-              icon: <Text style={styles.settingsMenuBadge}>FX</Text>,
+              icon: <Text style={[styles.settingsMenuBadge, { color: accessibility.colors.textSecondary }]}>FX</Text>,
               disabled: false,
             },
             {
-              label: drawMode === "single" ? "1 Card" : "3 Cards",
-              accessibilityLabel:
-                drawMode === "single"
-                  ? "Switch to three-card draw mode"
-                  : "Switch to single-card draw mode",
-              onPress: toggleDrawMode,
-              icon: (
-                <Image
-                  source={
-                    drawMode === "single"
-                      ? singleDrawToggleIcon
-                      : tripleDrawToggleIcon
-                  }
-                  style={styles.settingsMenuIcon}
-                />
-              ),
-              disabled: !canSwitchDrawMode,
+              label: "Accessibility",
+              accessibilityLabel: "Open Accessibility settings",
+              onPress: () => setIsAccessibilityOpen(true),
+              icon: <Text style={[styles.settingsMenuBadge, { color: accessibility.colors.textSecondary }]}>Aa</Text>,
+              disabled: false,
             },
             {
               label: "Privacy Policy",
@@ -5273,14 +5303,14 @@ function OracleApp() {
               onPress: () => {
                 void Linking.openURL(PRIVACY_POLICY_URL);
               },
-              icon: <Text style={styles.settingsMenuBadge}>i</Text>,
+              icon: <Text style={[styles.settingsMenuBadge, { color: accessibility.colors.textSecondary }]}>i</Text>,
               disabled: false,
             },
             {
               label: "Return to Cards",
               accessibilityLabel: "Close settings and return to cards",
               onPress: closeSettings,
-              icon: <Text style={styles.settingsMenuBadge}>←</Text>,
+              icon: <Text style={[styles.settingsMenuBadge, { color: accessibility.colors.textSecondary }]}>←</Text>,
               disabled: false,
             },
           ].map((item, index) => (
@@ -5303,19 +5333,49 @@ function OracleApp() {
                 disabled={item.disabled}
                 accessibilityRole="button"
                 accessibilityLabel={item.accessibilityLabel}
+                accessibilityState={{ disabled: item.disabled }}
                 style={({ pressed }) => [
                   styles.settingsMenuButton,
+                  {
+                    backgroundColor: accessibility.colors.surface,
+                    borderColor: accessibility.colors.border,
+                    minHeight: accessibility.preferences.largerText ? 62 : 52,
+                  },
                   item.disabled ? styles.settingsMenuButtonDisabled : null,
                   pressed ? styles.settingsMenuButtonPressed : null,
                 ]}
               >
                 <View style={styles.settingsMenuIconWrap}>{item.icon}</View>
-                <Text style={styles.settingsMenuButtonText}>{item.label}</Text>
+                <Text
+                  style={[
+                    styles.settingsMenuButtonText,
+                    {
+                      color: accessibility.colors.textSecondary,
+                      fontFamily: accessibility.preferences.dyslexiaFriendlyText
+                        ? "AtkinsonHyperlegibleBold"
+                        : appFontFamily,
+                      fontSize:
+                        item.label === "Accessibility"
+                          ? accessibility.preferences.largerText
+                            ? 18
+                            : 15
+                          : accessibility.preferences.largerText
+                            ? 21
+                            : 18,
+                    },
+                  ]}
+                >
+                  {item.label}
+                </Text>
               </Pressable>
             </Animated.View>
           ))}
         </View>
       ) : null}
+      <AccessibilitySettingsModal
+        visible={isAccessibilityOpen}
+        onClose={() => setIsAccessibilityOpen(false)}
+      />
       {!currentCard && !isSettingsOpen ? (
         <Pressable
           onPress={openSettings}
@@ -5324,13 +5384,30 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.settingsToggle,
             {
+              backgroundColor: accessibility.colors.surface,
+              borderColor: accessibility.colors.border,
+            },
+            {
               left: spacing.md + insets.left + 20,
               bottom: spacing.xs + insets.bottom + 10,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
         >
-          <Text style={styles.settingsToggleText}>SETTINGS</Text>
+          <Text
+            style={[
+              styles.settingsToggleText,
+              {
+                color: accessibility.colors.textSecondary,
+                fontFamily: accessibility.preferences.dyslexiaFriendlyText
+                  ? "AtkinsonHyperlegibleBold"
+                  : appFontFamily,
+                fontSize: accessibility.preferences.largerText ? 13 : 11,
+              },
+            ]}
+          >
+            SETTINGS
+          </Text>
         </Pressable>
       ) : null}
       {!currentCard && !isTripleCardTransitioning && !isSettingsOpen ? (
@@ -5341,13 +5418,45 @@ function OracleApp() {
           style={({ pressed }) => [
             styles.journalEntriesToggle,
             {
-              right: spacing.md + insets.right + 20,
-              bottom: spacing.xs + insets.bottom + 10,
+              right: spacing.md + insets.right + windowWidth * 0.4,
+              bottom: spacing.xs + insets.bottom + windowHeight * 0.02 + 30,
             },
             pressed ? styles.audioTogglePressed : null,
           ]}
         >
           <Image source={journalToggleIcon} style={styles.journalToggleIcon} />
+        </Pressable>
+      ) : null}
+      {!currentCard && !isTripleCardTransitioning && !isSettingsOpen ? (
+        <Pressable
+          onPress={toggleDrawMode}
+          disabled={!canSwitchDrawMode}
+          accessibilityRole="button"
+          accessibilityLabel={
+            drawMode === "triple"
+              ? "Switch to single-card draw mode"
+              : "Switch to three-card draw mode"
+          }
+          accessibilityState={{ disabled: !canSwitchDrawMode }}
+          style={({ pressed }) => [
+            styles.drawModeToggle,
+            {
+              right: spacing.md + insets.right + 20,
+              bottom: spacing.xs + insets.bottom + 10,
+            },
+            drawMode === "triple" ? styles.drawModeToggleActive : null,
+            !canSwitchDrawMode ? styles.drawModeToggleLocked : null,
+            pressed && canSwitchDrawMode ? styles.audioTogglePressed : null,
+          ]}
+        >
+          <Image
+            source={
+              drawMode === "single"
+                ? tripleDrawToggleIcon
+                : singleDrawToggleIcon
+            }
+            style={styles.drawModeToggleIcon}
+          />
         </Pressable>
       ) : null}
     </View>
@@ -5496,8 +5605,8 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
   journalToggleIcon: {
-    width: 140,
-    height: 140,
+    width: 105,
+    height: 105,
     resizeMode: "contain",
   },
   privacyLink: {
@@ -5919,6 +6028,24 @@ const styles = StyleSheet.create({
     borderRadius: CARD_CORNER_RADIUS,
     overflow: "hidden",
     backgroundColor: colors.surfaceAlt,
+  },
+  fanSelectedIndicator: {
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 2,
+    bottom: 6,
+    left: 6,
+    minHeight: 28,
+    paddingHorizontal: 8,
+    position: "absolute",
+    right: 6,
+    justifyContent: "center",
+  },
+  fanSelectedIndicatorText: {
+    fontFamily: appFontFamily,
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
   },
   fanCardHidden: {
     opacity: 0,
