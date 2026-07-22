@@ -3453,7 +3453,7 @@ function OracleApp() {
   const controlsGapScale = 0.5;
   const fanToControlsGap = useMemo(() => 50, []);
   const cardToControlsGap = useMemo(() => 10, []);
-  const bannerToFanGapOffset = useMemo(() => -7, []);
+  const bannerToFanGapOffset = useMemo(() => 13, []);
 
   useEffect(() => {
     tapHintAnim.stopAnimation();
