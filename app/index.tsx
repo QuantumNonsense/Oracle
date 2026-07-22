@@ -63,6 +63,11 @@ import ThemedButton from "../src/components/ThemedButton";
 import AccessibilitySettingsModal from "../src/components/AccessibilitySettingsModal";
 import { useAccessibility } from "../src/accessibility/AccessibilityProvider";
 import { colors, radii, shadow, spacing, typography } from "../src/theme";
+import {
+  PRIVACY_POLICY_URL,
+  SUPPORT_EMAIL,
+  SUPPORT_URL,
+} from "../src/constants/links";
 
 type ShuffleAnimationVariant =
   | "classic"
@@ -252,7 +257,6 @@ const DRAW_MODE_KEY = "oracle:draw-mode:v1";
 const REFLECTION_QUESTION_CURSORS_KEY =
   "oracle:reflection-question-cursors:v1";
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
-const PRIVACY_POLICY_URL = "https://privacy.quantumnonsense.com/";
 const STATS_SITE_HOSTNAMES = new Set(["stats.quantumnonsense.com"]);
 const IS_STATS_SITE_BUILD = process.env.EXPO_PUBLIC_STATS_SITE === "true";
 const MUSIC_TRACKS = [
@@ -799,7 +803,7 @@ function OracleApp() {
   const isMusicEnabledRef = useRef(true);
   const areSoundEffectsEnabledRef = useRef(true);
   const settingsItemAnims = useRef(
-    Array.from({ length: 5 }, () => new Animated.Value(0)),
+    Array.from({ length: 6 }, () => new Animated.Value(0)),
   ).current;
   const activeTrackIndexRef = useRef(0);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -1312,6 +1316,21 @@ function OracleApp() {
       }
     });
   }, [settingsItemAnims]);
+
+  const openSupportPage = useCallback(async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(SUPPORT_URL);
+      if (!canOpen) {
+        throw new Error("Support URL is unavailable");
+      }
+      await Linking.openURL(SUPPORT_URL);
+    } catch {
+      Alert.alert(
+        "Support page unavailable",
+        `Unable to open the MycOracle support page right now. You can contact us at ${SUPPORT_EMAIL}.`,
+      );
+    }
+  }, []);
 
   const applyDeckState = useCallback((next: DeckState) => {
     deckStateRef.current = next;
@@ -5322,8 +5341,21 @@ function OracleApp() {
               disabled: false,
             },
             {
+              label: "Support & Feedback",
+              accessibilityLabel: "Open MycOracle Support and Feedback",
+              accessibilityHint: "Opens the MycOracle support website in your browser",
+              accessibilityRole: "link" as const,
+              onPress: () => {
+                void openSupportPage();
+              },
+              icon: <Text style={[styles.settingsMenuBadge, { color: accessibility.colors.textSecondary }]}>?</Text>,
+              disabled: false,
+            },
+            {
               label: "Privacy Policy",
               accessibilityLabel: "Open Privacy Policy",
+              accessibilityHint: "Opens the MycOracle privacy policy in your browser",
+              accessibilityRole: "link" as const,
               onPress: () => {
                 void Linking.openURL(PRIVACY_POLICY_URL);
               },
@@ -5355,8 +5387,9 @@ function OracleApp() {
               <Pressable
                 onPress={item.onPress}
                 disabled={item.disabled}
-                accessibilityRole="button"
+                accessibilityRole={item.accessibilityRole ?? "button"}
                 accessibilityLabel={item.accessibilityLabel}
+                accessibilityHint={item.accessibilityHint}
                 accessibilityState={{ disabled: item.disabled }}
                 style={({ pressed }) => [
                   styles.settingsMenuButton,

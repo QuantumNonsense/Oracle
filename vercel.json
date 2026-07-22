@@ -2,6 +2,7 @@
   "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/mycoracle-support", "destination": "/mycoracle-support/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
